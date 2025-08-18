@@ -122,36 +122,91 @@ def extract_entities(doc: Doc, context: EntityContext):
 
 
 def extract_temporal_references(text: str, doc: Doc, context: EntityContext):
-    """Extract and parse temporal references"""
+    """Extract and parse temporal references with enhanced patterns"""
     
-    # Common temporal patterns
-    temporal_keywords = [
-        "today", "tomorrow", "yesterday",
-        "next week", "next month", "next year",
-        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-        "morning", "afternoon", "evening", "night",
-        "am", "pm"
+    import re
+    
+    # Enhanced temporal patterns
+    temporal_patterns = [
+        # Specific times
+        r'\b(?:at\s+)?(\d{1,2}(?::\d{2})?\s*(?:am|pm))\b',
+        # Relative days
+        r'\b(today|tomorrow|yesterday)\b',
+        # This/next/last patterns
+        r'\b(this|next|last)\s+(week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+        # In X time patterns
+        r'\bin\s+(\d+)\s+(minutes?|hours?|days?|weeks?|months?)\b',
+        # Weekdays
+        r'\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+        # Dates with various formats
+        r'\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b',
+        r'\b(\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december))\b',
     ]
     
-    # Extract date entities from SpaCy
+    # Extract temporal entities from SpaCy
     for ent in doc.ents:
-        if ent.label_ in ["DATE", "TIME"]:
-            parsed_date = dateparser.parse(ent.text, settings={'RELATIVE_BASE': datetime.now()})
-            
-            temporal_ref = TemporalReference(
-                original_text=ent.text,
-                parsed_datetime=parsed_date,
-                is_relative=any(keyword in ent.text.lower() for keyword in ["today", "tomorrow", "next", "last"])
+        if ent.label_ in ["DATE", "TIME", "EVENT"]:
+            parsed_date = dateparser.parse(
+                ent.text, 
+                settings={
+                    'RELATIVE_BASE': datetime.now(),
+                    'PREFER_DATES_FROM': 'future',
+                    'TIMEZONE': 'UTC'
+                }
             )
-            context.temporal_refs.append(temporal_ref)
+            
+            if parsed_date:
+                temporal_ref = TemporalReference(
+                    original_text=ent.text,
+                    parsed_datetime=parsed_date,
+                    is_relative=any(keyword in ent.text.lower() 
+                                  for keyword in ["today", "tomorrow", "next", "last", "this"])
+                )
+                context.temporal_refs.append(temporal_ref)
     
-    # Also try to parse the full text for complex date expressions
-    parsed_full = dateparser.parse(text, settings={'RELATIVE_BASE': datetime.now()})
-    if parsed_full and not any(t.parsed_datetime == parsed_full for t in context.temporal_refs):
+    # Use regex patterns to find additional temporal references
+    for pattern in temporal_patterns:
+        matches = re.finditer(pattern, text, re.IGNORECASE)
+        for match in matches:
+            temporal_text = match.group(0)
+            
+            # Skip if already captured by SpaCy
+            if any(temporal_text in ref.original_text for ref in context.temporal_refs):
+                continue
+                
+            parsed_date = dateparser.parse(
+                temporal_text,
+                settings={
+                    'RELATIVE_BASE': datetime.now(),
+                    'PREFER_DATES_FROM': 'future',
+                    'TIMEZONE': 'UTC'
+                }
+            )
+            
+            if parsed_date:
+                temporal_ref = TemporalReference(
+                    original_text=temporal_text,
+                    parsed_datetime=parsed_date,
+                    is_relative=True
+                )
+                context.temporal_refs.append(temporal_ref)
+    
+    # Try to parse the full text for complex expressions
+    full_parsed = dateparser.parse(
+        text, 
+        settings={
+            'RELATIVE_BASE': datetime.now(),
+            'PREFER_DATES_FROM': 'future',
+            'TIMEZONE': 'UTC'
+        }
+    )
+    
+    if full_parsed and not any(abs((t.parsed_datetime - full_parsed).total_seconds()) < 60 
+                              for t in context.temporal_refs if t.parsed_datetime):
         context.temporal_refs.append(
             TemporalReference(
                 original_text=text,
-                parsed_datetime=parsed_full,
+                parsed_datetime=full_parsed,
                 is_relative=True
             )
         )

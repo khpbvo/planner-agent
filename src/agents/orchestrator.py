@@ -11,6 +11,7 @@ from ..tools import (
     create_gmail_tool,
     create_nlp_tool
 )
+from ..guardrails import create_input_guardrails, create_output_guardrails
 
 
 class OrchestratorOutput(BaseModel):
@@ -95,6 +96,10 @@ async def create_orchestrator_agent(config) -> Agent:
         model=config.openai_model
     )
     
+    # Create guardrails for safety and validation
+    input_guardrails = create_input_guardrails()
+    output_guardrails = create_output_guardrails()
+    
     # Create the main orchestrator agent using agents-as-tools pattern
     orchestrator = Agent(
         name="Planning Assistant",
@@ -108,7 +113,7 @@ async def create_orchestrator_agent(config) -> Agent:
         2. Then use the appropriate specialized tool to accomplish the task
         3. Coordinate between multiple tools when needed
         4. Provide clear, actionable responses
-        5. Always confirm before making changes
+        5. Always confirm before making changes that affect user data
         
         Available tools:
         - process_language: For parsing natural language and extracting entities
@@ -116,6 +121,13 @@ async def create_orchestrator_agent(config) -> Agent:
         - manage_tasks: For all Todoist operations
         - manage_emails: For Gmail operations
         - get_planning_advice: For intelligent scheduling suggestions
+        
+        IMPORTANT GUIDELINES:
+        - Always prioritize user privacy and data security
+        - Confirm before creating, modifying, or deleting important items
+        - Provide helpful, accurate, and relevant planning assistance
+        - Stay focused on planning-related tasks
+        - Be transparent about what actions you're taking
         
         User preferences and context are maintained across the conversation.
         Be proactive in suggesting improvements to their schedule and task management.""",
@@ -141,6 +153,8 @@ async def create_orchestrator_agent(config) -> Agent:
                 tool_description="Get intelligent scheduling and planning suggestions"
             )
         ],
+        input_guardrails=input_guardrails,
+        output_guardrails=output_guardrails,
         model=config.openai_model
     )
     

@@ -90,29 +90,51 @@ async def list_events(
     if not end_date:
         end_date = start_date + timedelta(days=7)
     
-    # AppleScript to list events
+    # Enhanced AppleScript with better error handling and JSON output
     script = f'''
     on run
-        set startDate to date "{start_date.strftime('%m/%d/%Y')}"
-        set endDate to date "{end_date.strftime('%m/%d/%Y')}"
-        set eventList to {{}}
-        
-        tell application "Calendar"
-            tell calendar "{calendar_name}"
-                set theEvents to every event whose start date >= startDate and start date <= endDate
+        try
+            set startDate to date "{start_date.strftime('%m/%d/%Y')}"
+            set endDate to date "{end_date.strftime('%m/%d/%Y')}"
+            set eventList to {{}}
+            
+            tell application "Calendar"
+                -- Check if calendar exists
+                try
+                    set targetCalendar to calendar "{calendar_name}"
+                on error
+                    return "Error: Calendar '{calendar_name}' not found"
+                end try
                 
-                repeat with anEvent in theEvents
-                    set eventInfo to (summary of anEvent) & "|" & ¬
-                        (start date of anEvent as string) & "|" & ¬
-                        (end date of anEvent as string) & "|" & ¬
-                        (location of anEvent as string) & "|" & ¬
-                        (description of anEvent as string)
-                    set end of eventList to eventInfo
-                end repeat
+                tell targetCalendar
+                    set theEvents to every event whose start date >= startDate and start date <= endDate
+                    
+                    repeat with anEvent in theEvents
+                        set eventRecord to {{}}
+                        set eventRecord to eventRecord & "{{" & ¬
+                            "\\"title\\": \\"" & (summary of anEvent) & "\\", " & ¬
+                            "\\"start\\": \\"" & (start date of anEvent as string) & "\\", " & ¬
+                            "\\"end\\": \\"" & (end date of anEvent as string) & "\\", " & ¬
+                            "\\"location\\": \\"" & (location of anEvent as string) & "\\", " & ¬
+                            "\\"description\\": \\"" & (description of anEvent as string) & "\\"" & ¬
+                            "}}"
+                        set end of eventList to eventRecord
+                    end repeat
+                end tell
             end tell
-        end tell
-        
-        return eventList
+            
+            if length of eventList > 0 then
+                set AppleScript's text item delimiters to ","
+                set eventListString to "[" & (eventList as string) & "]"
+                set AppleScript's text item delimiters to ""
+                return eventListString
+            else
+                return "[]"
+            end if
+            
+        on error errMsg
+            return "AppleScript Error: " & errMsg
+        end try
     end run
     '''
     
@@ -121,27 +143,42 @@ async def list_events(
             ['osascript', '-e', script],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=30
         )
         
-        events = []
-        if result.stdout.strip():
-            event_strings = result.stdout.strip().split(', ')
-            for event_str in event_strings:
-                parts = event_str.split('|')
-                if len(parts) >= 3:
-                    events.append({
-                        "title": parts[0],
-                        "start": parts[1],
-                        "end": parts[2],
-                        "location": parts[3] if len(parts) > 3 else "",
-                        "description": parts[4] if len(parts) > 4 else ""
-                    })
+        output = result.stdout.strip()
         
-        return json.dumps(events, indent=2)
+        # If it's already JSON-like, try to parse and clean it
+        if output.startswith('[') and output.endswith(']'):
+            try:
+                # Try to parse as JSON (might need some cleaning)
+                import re
+                # Clean up the JSON-like string
+                cleaned = re.sub(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'"\1":', output)
+                events = json.loads(cleaned)
+                return json.dumps(events, indent=2)
+            except:
+                pass
         
+        # Fallback: return structured data
+        if output.startswith("Error:") or output.startswith("AppleScript Error:"):
+            return json.dumps({"error": output}, indent=2)
+        
+        return json.dumps({
+            "events": [],
+            "message": f"Found events but could not parse: {output[:200]}..."
+        }, indent=2)
+        
+    except subprocess.TimeoutExpired:
+        return json.dumps({"error": "Calendar operation timed out"}, indent=2)
     except subprocess.CalledProcessError as e:
-        return f"Error listing events: {e.stderr}"
+        return json.dumps({
+            "error": f"AppleScript execution failed: {e.stderr}",
+            "suggestion": "Make sure Calendar app is accessible and the calendar name is correct"
+        }, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
 
 
 async def create_event(
@@ -150,52 +187,128 @@ async def create_event(
 ) -> str:
     """Create a new calendar event"""
     
-    # Extract event details
-    title = event_data.get("title", "New Event")
-    start_date = event_data.get("start_date", datetime.now().isoformat())
-    end_date = event_data.get("end_date", (datetime.now() + timedelta(hours=1)).isoformat())
-    location = event_data.get("location", "")
-    description = event_data.get("description", "")
-    
-    # Convert ISO dates to AppleScript format
-    start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-    end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-    
-    # AppleScript to create event
-    script = f'''
-    on run
-        set startDate to date "{start_dt.strftime('%m/%d/%Y %I:%M:%S %p')}"
-        set endDate to date "{end_dt.strftime('%m/%d/%Y %I:%M:%S %p')}"
-        
-        tell application "Calendar"
-            tell calendar "{calendar_name}"
-                set newEvent to make new event with properties {{summary:"{title}", start date:startDate, end date:endDate}}
-                
-                if "{location}" is not "" then
-                    set location of newEvent to "{location}"
-                end if
-                
-                if "{description}" is not "" then
-                    set description of newEvent to "{description}"
-                end if
-                
-                return "Event created: " & summary of newEvent
-            end tell
-        end tell
-    end run
-    '''
-    
     try:
+        # Extract and validate event details
+        title = event_data.get("title", "New Event").replace('"', '\\"')
+        location = event_data.get("location", "").replace('"', '\\"')
+        description = event_data.get("description", "").replace('"', '\\"')
+        
+        # Handle date parsing more robustly
+        start_date = event_data.get("start_date")
+        end_date = event_data.get("end_date")
+        
+        if isinstance(start_date, str):
+            start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        elif isinstance(start_date, datetime):
+            start_dt = start_date
+        else:
+            start_dt = datetime.now()
+            
+        if isinstance(end_date, str):
+            end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        elif isinstance(end_date, datetime):
+            end_dt = end_date
+        else:
+            end_dt = start_dt + timedelta(hours=1)
+        
+        # Validate dates
+        if end_dt <= start_dt:
+            end_dt = start_dt + timedelta(hours=1)
+        
+        # Enhanced AppleScript with better error handling
+        script = f'''
+        on run
+            try
+                set startDate to date "{start_dt.strftime('%m/%d/%Y %I:%M:%S %p')}"
+                set endDate to date "{end_dt.strftime('%m/%d/%Y %I:%M:%S %p')}"
+                
+                tell application "Calendar"
+                    -- Check if calendar exists
+                    try
+                        set targetCalendar to calendar "{calendar_name}"
+                    on error
+                        return "Error: Calendar '{calendar_name}' not found. Available calendars: " & (name of every calendar)
+                    end try
+                    
+                    tell targetCalendar
+                        set newEvent to make new event with properties {{summary:"{title}", start date:startDate, end date:endDate}}
+                        
+                        if "{location}" is not "" then
+                            set location of newEvent to "{location}"
+                        end if
+                        
+                        if "{description}" is not "" then
+                            set description of newEvent to "{description}"
+                        end if
+                        
+                        -- Get the created event details
+                        set eventId to id of newEvent
+                        set eventSummary to summary of newEvent
+                        
+                        return "{{" & ¬
+                            "\\"status\\": \\"success\\", " & ¬
+                            "\\"message\\": \\"Event created successfully\\", " & ¬
+                            "\\"event\\": {{" & ¬
+                                "\\"id\\": \\"" & eventId & "\\", " & ¬
+                                "\\"title\\": \\"" & eventSummary & "\\", " & ¬
+                                "\\"start\\": \\"" & (start date of newEvent as string) & "\\", " & ¬
+                                "\\"end\\": \\"" & (end date of newEvent as string) & "\\"" & ¬
+                            "}}" & ¬
+                        "}}"
+                    end tell
+                end tell
+                
+            on error errMsg
+                return "{{" & ¬
+                    "\\"status\\": \\"error\\", " & ¬
+                    "\\"message\\": \\"" & errMsg & "\\"" & ¬
+                "}}"
+            end try
+        end run
+        '''
+        
         result = subprocess.run(
             ['osascript', '-e', script],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=30
         )
-        return result.stdout.strip()
         
+        output = result.stdout.strip()
+        
+        # Try to parse as JSON
+        try:
+            # Clean up potential JSON formatting issues
+            cleaned = output.replace('\n', '').replace('\r', '')
+            return cleaned
+        except:
+            return json.dumps({
+                "status": "success",
+                "message": f"Event created but response parsing failed: {output}",
+                "event": {
+                    "title": title,
+                    "start": start_dt.isoformat(),
+                    "end": end_dt.isoformat()
+                }
+            })
+            
+    except subprocess.TimeoutExpired:
+        return json.dumps({
+            "status": "error",
+            "message": "Calendar operation timed out"
+        })
     except subprocess.CalledProcessError as e:
-        return f"Error creating event: {e.stderr}"
+        return json.dumps({
+            "status": "error", 
+            "message": f"AppleScript execution failed: {e.stderr}",
+            "suggestion": "Check calendar permissions and calendar name"
+        })
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Event creation failed: {str(e)}"
+        })
 
 
 async def update_event(

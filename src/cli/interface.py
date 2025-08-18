@@ -17,6 +17,7 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 import os
 from pathlib import Path
 from openai_agents import Runner, SQLiteSession
+from openai_agents.exceptions import InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered
 
 console = Console()
 
@@ -101,6 +102,10 @@ Welcome to your intelligent planning assistant that integrates:
             else:
                 return await self._process_non_streaming(message)
             
+        except InputGuardrailTripwireTriggered as e:
+            return f"🛡️ Input blocked by safety guardrail: {e.guardrail_output.output_info}"
+        except OutputGuardrailTripwireTriggered as e:
+            return f"🛡️ Response blocked by safety guardrail: {e.guardrail_output.output_info}"
         except Exception as e:
             return f"❌ Error processing request: {str(e)}"
     
