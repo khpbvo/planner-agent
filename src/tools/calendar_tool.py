@@ -5,7 +5,7 @@ import json
 import subprocess
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from agents import function_tool
+from openai_agents import function_tool
 from pydantic import BaseModel
 
 from ..models.event import CalendarEvent, EventRecurrence
@@ -21,14 +21,8 @@ class CalendarOperation(BaseModel):
     event_id: Optional[str] = None
 
 
-def create_calendar_tool():
-    """Create the calendar tool for MacOS Calendar integration"""
-    
-    @function_tool(
-        name_override="manage_calendar",
-        description="Manage MacOS Calendar events - list, create, update, delete events and find free time slots"
-    )
-    async def manage_calendar(operation_input: CalendarOperation) -> str:
+@function_tool
+async def manage_calendar(operation_input: CalendarOperation) -> str:
         """
         Manage calendar events in MacOS Calendar app
         
@@ -79,6 +73,8 @@ def create_calendar_tool():
         else:
             return f"Unknown operation: {operation}"
     
+def create_calendar_tool():
+    """Create the calendar tool for MacOS Calendar integration"""
     return manage_calendar
 
 

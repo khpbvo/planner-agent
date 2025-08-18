@@ -10,11 +10,13 @@ from rich.markdown import Markdown
 from rich.live import Live
 from rich.spinner import Spinner
 from rich.table import Table
+from openai.types.responses import ResponseTextDeltaEvent
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 import os
 from pathlib import Path
+from openai_agents import Runner, SQLiteSession
 
 console = Console()
 
@@ -24,11 +26,14 @@ class PlannerCLI:
     
     def __init__(self, orchestrator_agent=None):
         self.orchestrator = orchestrator_agent
-        self.session = PromptSession(
+        self.prompt_session = PromptSession(
             history=FileHistory(str(Path.home() / '.planner_history')),
             auto_suggest=AutoSuggestFromHistory(),
         )
         self.running = False
+        # SQLite session for conversation memory
+        self.agent_session = None
+        self.streaming_mode = True
         
     def display_welcome(self):
         """Display welcome message and instructions"""
@@ -46,6 +51,7 @@ Welcome to your intelligent planning assistant that integrates:
 - `/help` - Show available commands
 - `/status` - Show current integrations status
 - `/sync` - Force sync all services
+- `/stream` - Toggle streaming mode
 - `/clear` - Clear the screen
 - `/exit` or `/quit` - Exit the application
 
@@ -83,19 +89,75 @@ Welcome to your intelligent planning assistant that integrates:
             return "⚠️ Orchestrator agent not initialized. Please check your configuration."
         
         try:
-            # This will be replaced with actual agent processing
-            with console.status("[bold green]Processing your request...", spinner="dots"):
-                # Simulate processing
-                await asyncio.sleep(1)
-                
-            # TODO: Actual agent processing here
-            # result = await Runner.run(self.orchestrator, message)
-            # return result.final_output
+            # Initialize session if not exists
+            if not self.agent_session:
+                self.agent_session = SQLiteSession(
+                    session_id="main_conversation",
+                    db_path="data/conversations.db"
+                )
             
-            return f"🤖 Received: '{message}' (Agent processing not yet implemented)"
+            if self.streaming_mode:
+                return await self._process_streaming(message)
+            else:
+                return await self._process_non_streaming(message)
             
         except Exception as e:
             return f"❌ Error processing request: {str(e)}"
+    
+    async def _process_non_streaming(self, message: str) -> str:
+        """Process message without streaming"""
+        with console.status("[bold green]Processing your request...", spinner="dots"):
+            result = await Runner.run(
+                self.orchestrator, 
+                message,
+                session=self.agent_session,
+                max_turns=10
+            )
+        return str(result.final_output)
+    
+    async def _process_streaming(self, message: str) -> str:
+        """Process message with streaming output"""
+        output_text = ""
+        panel = Panel(
+            "",
+            title="🤖 Assistant (Streaming)",
+            border_style="green",
+            padding=(1, 2)
+        )
+        
+        with Live(panel, console=console, refresh_per_second=10) as live:
+            # Run with streaming
+            result = Runner.run_streamed(
+                self.orchestrator,
+                message,
+                session=self.agent_session,
+                max_turns=10
+            )
+            
+            # Stream events
+            async for event in result.stream_events():
+                if event.type == "raw_response_event":
+                    # Handle text deltas for streaming output
+                    if isinstance(event.data, ResponseTextDeltaEvent):
+                        output_text += event.data.delta
+                        panel.renderable = Markdown(output_text)
+                        live.update(panel)
+                
+                elif event.type == "run_item_stream_event":
+                    # Handle completed items
+                    if event.item.type == "tool_call_item":
+                        console.print(f"[dim]🔧 Calling tool: {event.item.name}[/dim]")
+                    elif event.item.type == "tool_call_output_item":
+                        console.print(f"[dim]✓ Tool completed[/dim]")
+                
+                elif event.type == "agent_updated_stream_event":
+                    # Show agent handoffs
+                    console.print(f"[dim]→ Using: {event.new_agent.name}[/dim]")
+            
+            # Wait for completion
+            await result
+        
+        return output_text or "Response completed"
     
     async def handle_command(self, command: str) -> bool:
         """Handle special commands. Returns True if should continue, False to exit"""
@@ -119,6 +181,11 @@ Welcome to your intelligent planning assistant that integrates:
                 await asyncio.sleep(2)  # TODO: Actual sync
             console.print("[green]✓ All services synced successfully[/green]")
             
+        elif command == '/stream':
+            self.streaming_mode = not self.streaming_mode
+            mode = "enabled" if self.streaming_mode else "disabled"
+            console.print(f"[cyan]Streaming mode {mode}[/cyan]")
+            
         else:
             console.print(f"[red]Unknown command: {command}[/red]")
             
@@ -134,7 +201,7 @@ Welcome to your intelligent planning assistant that integrates:
                 # Get user input
                 user_input = await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: self.session.prompt(
+                    lambda: self.prompt_session.prompt(
                         "\n💭 You: ",
                         multiline=False,
                     )
@@ -151,13 +218,14 @@ Welcome to your intelligent planning assistant that integrates:
                 # Process with agent
                 response = await self.process_message(user_input)
                 
-                # Display response
-                console.print(Panel(
-                    Markdown(response),
-                    title="🤖 Assistant",
-                    border_style="green",
-                    padding=(1, 2)
-                ))
+                # Display response (only if not streaming, since streaming displays live)
+                if not self.streaming_mode and response:
+                    console.print(Panel(
+                        Markdown(response),
+                        title="🤖 Assistant",
+                        border_style="green",
+                        padding=(1, 2)
+                    ))
                 
             except KeyboardInterrupt:
                 console.print("\n[yellow]Use /exit to quit[/yellow]")

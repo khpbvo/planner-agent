@@ -4,7 +4,7 @@ NLP tool using SpaCy for entity extraction and temporal parsing
 import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from agents import function_tool
+from openai_agents import function_tool
 from pydantic import BaseModel
 import dateparser
 import spacy
@@ -22,24 +22,11 @@ class NLPOperation(BaseModel):
     language: str = "en"
 
 
-def create_nlp_tool(model_name: str = "en_core_web_lg"):
-    """Create the NLP tool for natural language processing"""
-    
-    # Load SpaCy model (would need to be downloaded first)
-    try:
-        nlp = spacy.load(model_name)
-    except:
-        # Fallback to small model if large isn't available
-        try:
-            nlp = spacy.load("en_core_web_sm")
-        except:
-            nlp = None
-    
-    @function_tool(
-        name_override="process_language",
-        description="Process natural language to extract entities, dates, and understand intent"
-    )
-    async def process_language(operation_input: NLPOperation) -> str:
+# Global NLP model (will be initialized in create_nlp_tool)
+_nlp_model = None
+
+@function_tool
+async def process_language(operation_input: NLPOperation) -> str:
         """
         Process natural language text using SpaCy
         
@@ -48,12 +35,12 @@ def create_nlp_tool(model_name: str = "en_core_web_lg"):
         """
         text = operation_input.text
         
-        if not nlp:
+        if not _nlp_model:
             # Fallback to basic processing without SpaCy
             return await basic_nlp_processing(text)
         
         # Process text with SpaCy
-        doc = nlp(text)
+        doc = _nlp_model(text)
         
         context = EntityContext(raw_text=text)
         
@@ -95,6 +82,20 @@ def create_nlp_tool(model_name: str = "en_core_web_lg"):
         }
         
         return json.dumps(result, indent=2)
+    
+def create_nlp_tool(model_name: str = "en_core_web_lg"):
+    """Create the NLP tool for natural language processing"""
+    global _nlp_model
+    
+    # Load SpaCy model (would need to be downloaded first)
+    try:
+        _nlp_model = spacy.load(model_name)
+    except:
+        # Fallback to small model if large isn't available
+        try:
+            _nlp_model = spacy.load("en_core_web_sm")
+        except:
+            _nlp_model = None
     
     return process_language
 

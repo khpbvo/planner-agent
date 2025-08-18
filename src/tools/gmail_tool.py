@@ -4,7 +4,7 @@ Gmail integration tool using Google API
 import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from agents import function_tool
+from openai_agents import function_tool
 from pydantic import BaseModel
 import base64
 from email.mime.text import MIMEText
@@ -19,17 +19,11 @@ class GmailOperation(BaseModel):
     max_results: int = 10
 
 
-def create_gmail_tool(config):
-    """Create the Gmail tool for email management"""
-    
-    # Note: Gmail integration requires OAuth2 setup
-    # This is a skeleton implementation
-    
-    @function_tool(
-        name_override="manage_emails",
-        description="Manage Gmail emails - list, read, send emails and extract action items"
-    )
-    async def manage_emails(operation_input: GmailOperation) -> str:
+# Global config (will be set in create_gmail_tool)
+_gmail_config = None
+
+@function_tool
+async def manage_emails(operation_input: GmailOperation) -> str:
         """
         Manage emails in Gmail
         
@@ -39,7 +33,7 @@ def create_gmail_tool(config):
         operation = operation_input.operation
         
         # Check if Gmail is configured
-        if not config.google_client_id:
+        if not _gmail_config or not _gmail_config.google_client_id:
             return "Gmail integration not configured. Please set up Google OAuth credentials."
         
         if operation == "list":
@@ -66,6 +60,10 @@ def create_gmail_tool(config):
         else:
             return f"Unknown operation: {operation}"
     
+def create_gmail_tool(config):
+    """Create the Gmail tool for email management"""
+    global _gmail_config
+    _gmail_config = config
     return manage_emails
 
 

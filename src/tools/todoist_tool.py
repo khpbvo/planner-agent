@@ -4,7 +4,7 @@ Todoist integration tool using the Todoist API
 import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from agents import function_tool
+from openai_agents import function_tool
 from pydantic import BaseModel
 from todoist_api_python.api import TodoistAPI
 
@@ -20,24 +20,18 @@ class TodoistOperation(BaseModel):
     filter_query: Optional[str] = None  # For advanced filtering
 
 
-def create_todoist_tool(api_key: str):
-    """Create the Todoist tool for task management"""
-    
-    # Initialize Todoist API client if API key is provided
-    api = TodoistAPI(api_key) if api_key else None
-    
-    @function_tool(
-        name_override="manage_tasks",
-        description="Manage Todoist tasks - list, create, update, complete, and delete tasks"
-    )
-    async def manage_tasks(operation_input: TodoistOperation) -> str:
+# Global API client (will be initialized in create_todoist_tool)
+_todoist_api = None
+
+@function_tool
+async def manage_tasks(operation_input: TodoistOperation) -> str:
         """
         Manage tasks in Todoist
         
         Args:
             operation_input: Todoist operation details
         """
-        if not api:
+        if not _todoist_api:
             return "Error: Todoist API key not configured. Please set TODOIST_API_KEY in your .env file"
         
         operation = operation_input.operation
@@ -45,7 +39,7 @@ def create_todoist_tool(api_key: str):
         try:
             if operation == "list":
                 return await list_tasks(
-                    api,
+                    _todoist_api,
                     operation_input.project_name,
                     operation_input.filter_query
                 )
@@ -53,13 +47,13 @@ def create_todoist_tool(api_key: str):
             elif operation == "create":
                 if not operation_input.task_data:
                     return "Error: task_data required for create operation"
-                return await create_task(api, operation_input.task_data)
+                return await create_task(_todoist_api, operation_input.task_data)
             
             elif operation == "update":
                 if not operation_input.task_id or not operation_input.task_data:
                     return "Error: task_id and task_data required for update operation"
                 return await update_task(
-                    api,
+                    _todoist_api,
                     operation_input.task_id,
                     operation_input.task_data
                 )
@@ -67,12 +61,12 @@ def create_todoist_tool(api_key: str):
             elif operation == "complete":
                 if not operation_input.task_id:
                     return "Error: task_id required for complete operation"
-                return await complete_task(api, operation_input.task_id)
+                return await complete_task(_todoist_api, operation_input.task_id)
             
             elif operation == "delete":
                 if not operation_input.task_id:
                     return "Error: task_id required for delete operation"
-                return await delete_task(api, operation_input.task_id)
+                return await delete_task(_todoist_api, operation_input.task_id)
             
             else:
                 return f"Unknown operation: {operation}"
@@ -80,6 +74,10 @@ def create_todoist_tool(api_key: str):
         except Exception as e:
             return f"Error performing Todoist operation: {str(e)}"
     
+def create_todoist_tool(api_key: str):
+    """Create the Todoist tool for task management"""
+    global _todoist_api
+    _todoist_api = TodoistAPI(api_key) if api_key else None
     return manage_tasks
 
 
