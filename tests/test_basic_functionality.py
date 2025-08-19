@@ -10,12 +10,12 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from tools.calendar_tool import manage_calendar
-from tools.nlp_tool import process_language, NLPOperation, NLPResponse
-from models.calendar_tool import CalendarOperation, CalendarResponse
-from models.task import Task, TaskPriority
-from models.event import CalendarEvent
-from models.context import EntityContext, TemporalReference
+from src.tools.calendar_tool import _manage_calendar_impl as manage_calendar
+from src.tools.nlp_tool import process_language, NLPOperation, NLPResponse
+from src.models.calendar_tool import CalendarOperation, CalendarResponse
+from src.models.task import Task, TaskPriority
+from src.models.event import CalendarEvent
+from src.models.context import EntityContext, TemporalReference
 
 
 class TestCalendarTool:

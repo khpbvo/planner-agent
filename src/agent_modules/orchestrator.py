@@ -12,8 +12,8 @@ from tools import (
     create_nlp_tool
 )
 from guardrails import create_input_guardrails, create_output_guardrails
-from .handoffs import create_handoff_tools, create_handoff_coordinator
-from .smart_planner import create_smart_planning_tool
+from handoffs import create_handoff_tools, create_handoff_coordinator
+from smart_planner import create_smart_planning_tool
 
 
 class OrchestratorOutput(BaseModel):
