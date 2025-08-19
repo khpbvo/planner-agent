@@ -4,7 +4,7 @@ Monitoring package for the Planning Assistant
 Provides comprehensive tracing, monitoring, and analytics capabilities
 for the multi-agent planning system.
 """
-from tracer import (
+from .tracer import (
     PlanningTracer,
     TraceEvent,
     TraceEventType,
@@ -15,7 +15,7 @@ from tracer import (
     init_tracer
 )
 
-from agent_monitor import (
+from .agent_monitor import (
     AgentMonitor,
     MonitoringMixin,
     get_monitor,
@@ -24,7 +24,7 @@ from agent_monitor import (
     trace_tool
 )
 
-from dashboard import (
+from .dashboard import (
     MonitoringDashboard,
     get_dashboard
 )
@@ -63,7 +63,7 @@ def setup_monitoring(trace_level: str = "INFO",
     Returns:
         tuple: (tracer, monitor, dashboard) instances
     """
-    from tracer import TraceLevel
+    from .tracer import TraceLevel
     
     # Convert string level to enum
     level_map = {

@@ -114,7 +114,7 @@ Welcome to your intelligent planning assistant that integrates:
                 )
             
             # Trace user input
-            self.tracer._add_event(self.tracer._create_event(
+            self.tracer._add_event(self.tracer.create_event(
                 event_type="user_input",
                 level="info", 
                 session_id=self.conversation_trace.session_id,
@@ -128,7 +128,7 @@ Welcome to your intelligent planning assistant that integrates:
                 result = await self._process_non_streaming(message)
             
             # Trace system output
-            self.tracer._add_event(self.tracer._create_event(
+            self.tracer._add_event(self.tracer.create_event(
                 event_type="system_output",
                 level="info",
                 session_id=self.conversation_trace.session_id,
@@ -208,7 +208,19 @@ Welcome to your intelligent planning assistant that integrates:
                 elif event.type == "run_item_stream_event":
                     # Handle completed items
                     if event.item.type == "tool_call_item":
-                        console.print(f"[dim]🔧 Calling tool: {event.item.name}[/dim]")
+                        # Get tool name from raw_item - handle different tool call types
+                        tool_name = "Unknown tool"
+                        raw_item = event.item.raw_item
+                        
+                        # Try different ways to get the tool name
+                        if hasattr(raw_item, 'function') and hasattr(raw_item.function, 'name'):
+                            tool_name = raw_item.function.name
+                        elif hasattr(raw_item, 'name'):
+                            tool_name = raw_item.name
+                        elif hasattr(raw_item, 'type'):
+                            tool_name = f"{raw_item.type} tool"
+                        
+                        console.print(f"[dim]🔧 Calling tool: {tool_name}[/dim]")
                     elif event.item.type == "tool_call_output_item":
                         console.print(f"[dim]✓ Tool completed[/dim]")
                 
@@ -221,9 +233,9 @@ Welcome to your intelligent planning assistant that integrates:
                     if hasattr(event, 'handoff_reason'):
                         console.print(f"[cyan]🔄 Handoff: {event.handoff_reason}[/cyan]")
             
-            # Wait for completion
-            await result
-        
+            # Stream events are already handled above
+            # RunResultStreaming doesn't support direct await
+            
         return output_text or "Response completed"
     
     async def handle_command(self, command: str) -> bool:

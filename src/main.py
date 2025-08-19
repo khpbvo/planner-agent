@@ -55,7 +55,7 @@ async def initialize_services():
         return orchestrator
         
     except Exception as e:
-        logger.error(f"Failed to initialize services: {e}")
+        logger.error(f"Failed to initialize services: {e}", exc_info=True)
         return None
 
 

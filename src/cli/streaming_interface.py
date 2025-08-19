@@ -57,7 +57,19 @@ class StreamingCLI:
                     elif event.type == "run_item_stream_event":
                         # Handle completed items
                         if event.item.type == "tool_call_item":
-                            console.print(f"[dim]🔧 Calling tool: {event.item.name}[/dim]")
+                            # Get tool name from raw_item - handle different tool call types
+                            tool_name = "Unknown tool"
+                            raw_item = event.item.raw_item
+                            
+                            # Try different ways to get the tool name
+                            if hasattr(raw_item, 'function') and hasattr(raw_item.function, 'name'):
+                                tool_name = raw_item.function.name
+                            elif hasattr(raw_item, 'name'):
+                                tool_name = raw_item.name
+                            elif hasattr(raw_item, 'type'):
+                                tool_name = f"{raw_item.type} tool"
+                            
+                            console.print(f"[dim]🔧 Calling tool: {tool_name}[/dim]")
                         elif event.item.type == "tool_call_output_item":
                             console.print(f"[dim]✓ Tool completed[/dim]")
                     
@@ -65,8 +77,8 @@ class StreamingCLI:
                         # Show agent handoffs
                         console.print(f"[dim]→ Delegating to: {event.new_agent.name}[/dim]")
                 
-                # Final output is available in result
-                await result  # Wait for completion
+                # Stream events have been processed above
+                # RunResultStreaming doesn't support direct await
                 
             except Exception as e:
                 console.print(f"[red]Error: {e}[/red]")

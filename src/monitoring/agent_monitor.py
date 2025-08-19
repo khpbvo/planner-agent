@@ -11,7 +11,7 @@ from datetime import datetime
 import inspect
 import json
 
-from tracer import get_tracer, TraceEventType, TraceLevel
+from .tracer import get_tracer, TraceEventType, TraceLevel
 
 F = TypeVar('F', bound=Callable[..., Any])
 
@@ -297,7 +297,7 @@ class MonitoringMixin:
 try:
     tracer_cls = get_tracer().__class__
     if not hasattr(tracer_cls, "_create_event"):
-        from tracer import TraceEvent as _TraceEvent
+        from .tracer import TraceEvent as _TraceEvent
 
         def _create_event(self, **kwargs):
             return _TraceEvent(**kwargs)

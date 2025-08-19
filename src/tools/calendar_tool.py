@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 from agents import function_tool
 
-from ..models.event import CalendarEvent, EventRecurrence
-from ..models.calendar_tool import CalendarOperation, CalendarResponse
-from ..models import ToolError
+from models.event import CalendarEvent, EventRecurrence
+from models.calendar_tool import CalendarOperation, CalendarResponse
+from models import ToolError
 
 
 class CalendarOperationLegacy(BaseModel):

@@ -5,8 +5,6 @@ the application can start even if optional integrations aren't configured.
 """
 from typing import Optional, Dict, Any
 import json
-from agents import function_tool
-from ..models import ToolError
 
 
 def create_calendar_tool():
@@ -21,6 +19,8 @@ def create_nlp_tool(spacy_model: str = "en_core_web_sm"):
     The full featured NLP tool can be wired later; this stub extracts a minimal
     intent and an optional naive datetime using simple heuristics.
     """
+    # Import locally to avoid circular imports
+    from agents import function_tool
 
     @function_tool
     async def process_language(text: str) -> str:
@@ -48,34 +48,42 @@ def create_nlp_tool(spacy_model: str = "en_core_web_sm"):
 
 def create_todoist_tool(api_key: Optional[str]):
     """Return a Todoist tool; if not configured, return a stub that explains it."""
+    from agents import function_tool
+    
     if not api_key:
         @function_tool
         async def manage_tasks(operation: str) -> str:
             return json.dumps({
-                **ToolError(message="Todoist not configured", code="not_configured").model_dump(),
+                "status": "error",
+                "message": "Todoist not configured",
+                "code": "not_configured",
                 "suggestion": "Set TODOIST_API_KEY in your environment"
             }, indent=2)
         return manage_tasks
 
     # Lazy import the real tool only if an API key is present
-    from todoist_tool import manage_tasks as real_manage_tasks
+    from .todoist_tool import manage_tasks as real_manage_tasks
     return real_manage_tasks
 
 
 def create_gmail_tool(config):
     """Return a Gmail tool; if not configured, return a stub."""
+    from agents import function_tool
+    
     if not getattr(config, "google_client_id", None):
         @function_tool
         async def manage_emails(operation: str) -> str:
             return json.dumps({
-                **ToolError(message="Gmail integration not configured", code="not_configured").model_dump(),
+                "status": "error",
+                "message": "Gmail integration not configured",
+                "code": "not_configured",
                 "required_variables": [
                     "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"
                 ]
             }, indent=2)
         return manage_emails
 
-    from gmail_tool import manage_emails as real_manage_emails
+    from .gmail_tool import manage_emails as real_manage_emails
     return real_manage_emails
 
 

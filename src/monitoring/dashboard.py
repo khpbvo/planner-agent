@@ -17,8 +17,8 @@ from rich.tree import Tree
 import asyncio
 import json
 
-from tracer import get_tracer, TraceEventType, TraceLevel
-from agent_monitor import get_monitor
+from .tracer import get_tracer, TraceEventType, TraceLevel
+from .agent_monitor import get_monitor
 
 console = Console()
 

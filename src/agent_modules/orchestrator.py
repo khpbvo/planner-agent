@@ -5,13 +5,13 @@ from typing import Optional, List
 from agents import Agent
 from pydantic import BaseModel
 
-from ..tools import (
+from tools import (
     create_calendar_tool,
     create_todoist_tool,
     create_gmail_tool,
     create_nlp_tool
 )
-from ..guardrails import create_input_guardrails, create_output_guardrails
+from guardrails import create_input_guardrails, create_output_guardrails
 from .handoffs import create_handoff_tools, create_handoff_coordinator
 from .smart_planner import create_smart_planning_tool
 

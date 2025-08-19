@@ -305,13 +305,42 @@ CONTEXT DATA:
 
 
 # Function tools for handoff management
-@function_tool(strict_json_schema=False)
-async def request_agent_handoff(handoff_request: HandoffRequest) -> str:
-    """Request a handoff to a specialized agent"""
+@function_tool
+async def request_agent_handoff(
+    target_agent: str, 
+    reason: str, 
+    context_json: str = "{}",
+    urgency: str = "medium",
+    expected_outcome: str = ""
+) -> str:
+    """Request a handoff to a specialized agent
+    
+    Args:
+        target_agent: The agent to hand off to
+        reason: Reason for the handoff
+        context_json: JSON string containing context data
+        urgency: Urgency level (low, medium, high, critical)
+        expected_outcome: Expected outcome description
+    """
     
     coordinator = HandoffCoordinator(Config())
     
     try:
+        # Parse context JSON
+        try:
+            context = json.loads(context_json) if context_json else {}
+        except json.JSONDecodeError:
+            context = {"raw_context": context_json}
+        
+        # Create HandoffRequest object
+        handoff_request = HandoffRequest(
+            target_agent=target_agent,
+            reason=reason,
+            context=context,
+            urgency=urgency,
+            expected_outcome=expected_outcome
+        )
+        
         # Validate target agent exists
         if handoff_request.target_agent not in coordinator.capabilities:
             return json.dumps({
@@ -340,11 +369,11 @@ async def request_agent_handoff(handoff_request: HandoffRequest) -> str:
         return json.dumps({
             "status": "error",
             "message": f"Handoff creation failed: {str(e)}",
-            "target_agent": handoff_request.target_agent
+            "target_agent": target_agent
         }, indent=2)
 
 
-@function_tool(strict_json_schema=False)
+@function_tool
 async def analyze_handoff_patterns() -> str:
     """Analyze handoff patterns and efficiency"""
     

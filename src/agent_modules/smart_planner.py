@@ -44,35 +44,70 @@ class PlanningRecommendation(BaseModel):
     reasoning: str
 
 
-@function_tool(strict_json_schema=False)
-async def smart_planning(request: PlanningRequest) -> str:
+@function_tool
+async def smart_planning(
+    operation: str,
+    tasks_json: str = "[]",
+    events_json: str = "[]", 
+    preferences_json: str = "{}",
+    time_range_json: str = "{}",
+    context_json: str = "{}"
+) -> str:
     """
     Intelligent planning operations for scheduling and task management
     
     Args:
-        request: Planning request with operation details
+        operation: The planning operation to perform (schedule_optimal, analyze_workload, etc)
+        tasks_json: JSON string containing task data
+        events_json: JSON string containing event data
+        preferences_json: JSON string containing user preferences
+        time_range_json: JSON string containing time range data
+        context_json: JSON string containing additional context
     """
     
     try:
-        if request.operation == "schedule_optimal":
+        # Parse JSON inputs
+        try:
+            tasks = json.loads(tasks_json) if tasks_json else []
+            events = json.loads(events_json) if events_json else []
+            preferences = json.loads(preferences_json) if preferences_json else {}
+            time_range = json.loads(time_range_json) if time_range_json else {}
+            context = json.loads(context_json) if context_json else {}
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"Invalid JSON in input parameters: {str(e)}"
+            }, indent=2)
+        
+        # Create a mock PlanningRequest for compatibility with existing functions
+        request = type('PlanningRequest', (), {
+            'operation': operation,
+            'tasks': tasks,
+            'events': events,
+            'preferences': preferences,
+            'time_range': time_range,
+            'context': context
+        })()
+        
+        if operation == "schedule_optimal":
             return await schedule_optimal_time(request)
         
-        elif request.operation == "analyze_workload":
+        elif operation == "analyze_workload":
             return await analyze_workload(request)
         
-        elif request.operation == "suggest_improvements":
+        elif operation == "suggest_improvements":
             return await suggest_improvements(request)
         
-        elif request.operation == "find_conflicts":
+        elif operation == "find_conflicts":
             return await find_conflicts(request)
         
-        elif request.operation == "plan_day":
+        elif operation == "plan_day":
             return await plan_optimal_day(request)
         
         else:
             return json.dumps({
                 "status": "error",
-                "message": f"Unknown planning operation: {request.operation}",
+                "message": f"Unknown planning operation: {operation}",
                 "supported_operations": [
                     "schedule_optimal", "analyze_workload", "suggest_improvements", 
                     "find_conflicts", "plan_day"
@@ -83,7 +118,7 @@ async def smart_planning(request: PlanningRequest) -> str:
         return json.dumps({
             "status": "error",
             "message": f"Smart planning failed: {str(e)}",
-            "operation": request.operation
+            "operation": operation
         }, indent=2)
 
 
