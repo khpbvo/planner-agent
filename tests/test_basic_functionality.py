@@ -24,7 +24,7 @@ class TestCalendarTool:
     @pytest.mark.asyncio
     async def test_calendar_tool_structure(self):
         """Test that calendar tool returns proper JSON structure"""
-        from models.calendar_tool import CalendarOperation
+        from models.calendar_tool import CalendarOperation, CalendarResponse
         
         # Test list operation (should handle gracefully even without calendar access)
         operation = CalendarOperation(
@@ -34,17 +34,18 @@ class TestCalendarTool:
         )
         
         result = await manage_calendar(operation)
-        
-        # Should return JSON string
-        assert isinstance(result, str)
-        
+
+        # Should return CalendarResponse with JSON string
+        assert isinstance(result, CalendarResponse)
+        assert isinstance(result.result, str)
+
         # Should be parseable as JSON
         try:
-            parsed = json.loads(result)
+            parsed = json.loads(result.result)
             assert isinstance(parsed, (dict, list))
         except json.JSONDecodeError:
             # If not JSON, should at least be a string response
-            assert len(result) > 0
+            assert len(result.result) > 0
 
 
 class TestNLPTool:

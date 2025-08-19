@@ -3,12 +3,13 @@
 This module avoids importing heavy/strict-schema tools at import time to ensure
 the application can start even if optional integrations aren't configured.
 """
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 import json
 from agents import function_tool
+from models.calendar_tool import CalendarOperation, CalendarResponse
 
 
-def create_calendar_tool():
+def create_calendar_tool() -> Callable[[CalendarOperation], CalendarResponse]:
     """Return the calendar tool (lazy-imports the module)."""
     from .calendar_tool import manage_calendar
     return manage_calendar

@@ -3,78 +3,51 @@ MacOS Calendar integration tool using AppleScript via osascript
 """
 import json
 import subprocess
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from agents import function_tool
-from pydantic import BaseModel
 
 from models.event import CalendarEvent, EventRecurrence
+from models.calendar_tool import CalendarOperation, CalendarResponse
 
 
-class CalendarOperation(BaseModel):
-    """Input for calendar operations"""
-    operation: str  # "list", "create", "update", "delete", "find_free_slots"
-    calendar_name: Optional[str] = "Calendar"  # Default calendar
-    event_data: Optional[Dict[str, Any]] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    event_id: Optional[str] = None
-
-
-@function_tool
-async def manage_calendar(
-    operation: str,
-    calendar_name: str = "Calendar",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    event_id: Optional[str] = None,
-    event_data_json: Optional[str] = None
-) -> str:
+@function_tool(strict_mode=False)
+async def manage_calendar(operation: CalendarOperation) -> CalendarResponse:
         """Manage calendar events in MacOS Calendar app"""
-        # Parse dates
-        parsed_start = None
-        parsed_end = None
-        if start_date:
-            try:
-                parsed_start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            except Exception:
-                parsed_start = None
-        if end_date:
-            try:
-                parsed_end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            except Exception:
-                parsed_end = None
+        op = operation.operation
+        calendar_name = operation.calendar_name or "Calendar"
+        parsed_start = operation.start_date
+        parsed_end = operation.end_date
+        event_id = operation.event_id
+        event_data = operation.event_data
 
-        if operation == "list":
-            return await list_events(calendar_name, parsed_start, parsed_end)
-        elif operation == "create":
-            if not event_data_json:
-                return "Error: event_data required for create operation"
-            try:
-                event_data = json.loads(event_data_json)
-            except Exception as e:
-                return json.dumps({"error": f"Invalid event_data_json: {e}"})
-            return await create_event(calendar_name, event_data)
-        elif operation == "update":
-            if not event_id or not event_data_json:
-                return "Error: event_id and event_data required for update operation"
-            try:
-                event_data = json.loads(event_data_json)
-            except Exception as e:
-                return json.dumps({"error": f"Invalid event_data_json: {e}"})
-            return await update_event(event_id, event_data, calendar_name)
-        elif operation == "delete":
+        if op == "list":
+            result = await list_events(calendar_name, parsed_start, parsed_end)
+        elif op == "create":
+            if not event_data:
+                result = "Error: event_data required for create operation"
+            else:
+                result = await create_event(calendar_name, event_data)
+        elif op == "update":
+            if not event_id or not event_data:
+                result = "Error: event_id and event_data required for update operation"
+            else:
+                result = await update_event(event_id, event_data, calendar_name)
+        elif op == "delete":
             if not event_id:
-                return "Error: event_id required for delete operation"
-            return await delete_event(event_id, calendar_name)
-        elif operation == "find_free_slots":
-            return await find_free_slots(
+                result = "Error: event_id required for delete operation"
+            else:
+                result = await delete_event(event_id, calendar_name)
+        elif op == "find_free_slots":
+            result = await find_free_slots(
                 parsed_start or datetime.now(),
                 parsed_end or (datetime.now() + timedelta(days=7)),
                 calendar_name
             )
         else:
-            return f"Unknown operation: {operation}"
+            result = f"Unknown operation: {op}"
+
+        return CalendarResponse(result=result)
 
 
 def create_calendar_tool():
