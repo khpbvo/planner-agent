@@ -6,6 +6,7 @@ the application can start even if optional integrations aren't configured.
 from typing import Optional, Dict, Any
 import json
 from agents import function_tool
+from models import ToolError
 
 
 def create_calendar_tool():
@@ -51,8 +52,7 @@ def create_todoist_tool(api_key: Optional[str]):
         @function_tool
         async def manage_tasks(operation: str) -> str:
             return json.dumps({
-                "status": "error",
-                "message": "Todoist not configured",
+                **ToolError(message="Todoist not configured", code="not_configured").model_dump(),
                 "suggestion": "Set TODOIST_API_KEY in your environment"
             }, indent=2)
         return manage_tasks
@@ -68,8 +68,7 @@ def create_gmail_tool(config):
         @function_tool
         async def manage_emails(operation: str) -> str:
             return json.dumps({
-                "status": "error",
-                "message": "Gmail integration not configured",
+                **ToolError(message="Gmail integration not configured", code="not_configured").model_dump(),
                 "required_variables": [
                     "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"
                 ]

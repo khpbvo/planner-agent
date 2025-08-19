@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from todoist_api_python.api import TodoistAPI
 
 from models.task import TodoistTask, TaskPriority
+from models import ToolError
 
 
 class TodoistOperation(BaseModel):
@@ -32,7 +33,10 @@ async def manage_tasks(operation_input: TodoistOperation) -> str:
             operation_input: Todoist operation details
         """
         if not _todoist_api:
-            return "Error: Todoist API key not configured. Please set TODOIST_API_KEY in your .env file"
+            return ToolError(
+                message="Todoist API key not configured. Please set TODOIST_API_KEY in your .env file",
+                code="not_configured",
+            ).model_dump_json(indent=2)
         
         operation = operation_input.operation
         
@@ -46,12 +50,12 @@ async def manage_tasks(operation_input: TodoistOperation) -> str:
             
             elif operation == "create":
                 if not operation_input.task_data:
-                    return "Error: task_data required for create operation"
+                    return ToolError(message="task_data required for create operation").model_dump_json(indent=2)
                 return await create_task(_todoist_api, operation_input.task_data)
             
             elif operation == "update":
                 if not operation_input.task_id or not operation_input.task_data:
-                    return "Error: task_id and task_data required for update operation"
+                    return ToolError(message="task_id and task_data required for update operation").model_dump_json(indent=2)
                 return await update_task(
                     _todoist_api,
                     operation_input.task_id,
@@ -60,19 +64,19 @@ async def manage_tasks(operation_input: TodoistOperation) -> str:
             
             elif operation == "complete":
                 if not operation_input.task_id:
-                    return "Error: task_id required for complete operation"
+                    return ToolError(message="task_id required for complete operation").model_dump_json(indent=2)
                 return await complete_task(_todoist_api, operation_input.task_id)
             
             elif operation == "delete":
                 if not operation_input.task_id:
-                    return "Error: task_id required for delete operation"
+                    return ToolError(message="task_id required for delete operation").model_dump_json(indent=2)
                 return await delete_task(_todoist_api, operation_input.task_id)
             
             else:
-                return f"Unknown operation: {operation}"
+                return ToolError(message=f"Unknown operation: {operation}").model_dump_json(indent=2)
                 
         except Exception as e:
-            return f"Error performing Todoist operation: {str(e)}"
+            return ToolError(message=f"Error performing Todoist operation: {str(e)}").model_dump_json(indent=2)
     
 def create_todoist_tool(api_key: str):
     """Create the Todoist tool for task management"""

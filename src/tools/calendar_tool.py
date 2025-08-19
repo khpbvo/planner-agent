@@ -9,6 +9,7 @@ from agents import function_tool
 from pydantic import BaseModel
 
 from models.event import CalendarEvent, EventRecurrence
+from models import ToolError
 
 
 class CalendarOperation(BaseModel):
@@ -49,23 +50,23 @@ async def manage_calendar(
             return await list_events(calendar_name, parsed_start, parsed_end)
         elif operation == "create":
             if not event_data_json:
-                return "Error: event_data required for create operation"
+                return ToolError(message="event_data required for create operation").model_dump_json(indent=2)
             try:
                 event_data = json.loads(event_data_json)
             except Exception as e:
-                return json.dumps({"error": f"Invalid event_data_json: {e}"})
+                return ToolError(message=f"Invalid event_data_json: {e}").model_dump_json(indent=2)
             return await create_event(calendar_name, event_data)
         elif operation == "update":
             if not event_id or not event_data_json:
-                return "Error: event_id and event_data required for update operation"
+                return ToolError(message="event_id and event_data required for update operation").model_dump_json(indent=2)
             try:
                 event_data = json.loads(event_data_json)
             except Exception as e:
-                return json.dumps({"error": f"Invalid event_data_json: {e}"})
+                return ToolError(message=f"Invalid event_data_json: {e}").model_dump_json(indent=2)
             return await update_event(event_id, event_data, calendar_name)
         elif operation == "delete":
             if not event_id:
-                return "Error: event_id required for delete operation"
+                return ToolError(message="event_id required for delete operation").model_dump_json(indent=2)
             return await delete_event(event_id, calendar_name)
         elif operation == "find_free_slots":
             return await find_free_slots(
@@ -74,7 +75,7 @@ async def manage_calendar(
                 calendar_name
             )
         else:
-            return f"Unknown operation: {operation}"
+            return ToolError(message=f"Unknown operation: {operation}").model_dump_json(indent=2)
 
 
 def create_calendar_tool():
@@ -167,22 +168,22 @@ async def list_events(
         
         # Fallback: return structured data
         if output.startswith("Error:") or output.startswith("AppleScript Error:"):
-            return json.dumps({"error": output}, indent=2)
-        
+            return ToolError(message=output).model_dump_json(indent=2)
+
         return json.dumps({
             "events": [],
             "message": f"Found events but could not parse: {output[:200]}..."
         }, indent=2)
-        
+
     except subprocess.TimeoutExpired:
-        return json.dumps({"error": "Calendar operation timed out"}, indent=2)
+        return ToolError(message="Calendar operation timed out").model_dump_json(indent=2)
     except subprocess.CalledProcessError as e:
         return json.dumps({
-            "error": f"AppleScript execution failed: {e.stderr}",
+            **ToolError(message=f"AppleScript execution failed: {e.stderr}").model_dump(),
             "suggestion": "Make sure Calendar app is accessible and the calendar name is correct"
         }, indent=2)
     except Exception as e:
-        return json.dumps({"error": f"Unexpected error: {str(e)}"}, indent=2)
+        return ToolError(message=f"Unexpected error: {str(e)}").model_dump_json(indent=2)
 
 
 async def create_event(
@@ -322,7 +323,10 @@ async def update_event(
 ) -> str:
     """Update an existing calendar event"""
     # This is a simplified version - full implementation would need proper event ID handling
-    return f"Event update not yet fully implemented. Would update event {event_id} with: {json.dumps(event_data)}"
+    return ToolError(
+        message=f"Event update not yet implemented for {event_id}",
+        code="not_implemented",
+    ).model_dump_json(indent=2)
 
 
 async def delete_event(
@@ -331,7 +335,10 @@ async def delete_event(
 ) -> str:
     """Delete a calendar event"""
     # This is a simplified version - full implementation would need proper event ID handling
-    return f"Event deletion not yet fully implemented. Would delete event {event_id}"
+    return ToolError(
+        message=f"Event deletion not yet implemented for {event_id}",
+        code="not_implemented",
+    ).model_dump_json(indent=2)
 
 
 async def find_free_slots(
@@ -345,6 +352,9 @@ async def find_free_slots(
     # First, get all events in the date range
     events_json = await list_events(calendar_name, start_date, end_date)
     events = json.loads(events_json)
+
+    if isinstance(events, dict) and events.get("status") == "error":
+        return ToolError(message=events.get("message", "Failed to list events"), code=events.get("code")).model_dump_json(indent=2)
     
     # Simple algorithm to find free slots
     # This is a basic implementation - would need enhancement for production
