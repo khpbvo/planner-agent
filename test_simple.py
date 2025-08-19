@@ -52,7 +52,7 @@ try:
     
     # Try a simple run
     import asyncio
-    async def test_run():
+    async def run_agent():
         from agents import Runner
         result = await Runner.run(
             agent,
@@ -62,7 +62,7 @@ try:
         return result
     
     print("\nRunning test agent...")
-    result = asyncio.run(test_run())
+    result = asyncio.run(run_agent())
     print(f"✓ Agent responded: {result.messages[-1].content[:100]}...")
     
 except Exception as e:

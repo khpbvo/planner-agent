@@ -4,7 +4,6 @@ Basic functionality tests for the Planning Assistant
 import asyncio
 import pytest
 from datetime import datetime, timedelta
-import json
 import sys
 import os
 
@@ -12,7 +11,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from tools.calendar_tool import manage_calendar
-from tools.nlp_tool import basic_nlp_processing
+from tools.nlp_tool import process_language, NLPOperation, NLPResponse
+from models.calendar_tool import CalendarOperation, CalendarResponse
 from models.task import Task, TaskPriority
 from models.event import CalendarEvent
 from models.context import EntityContext, TemporalReference
@@ -24,27 +24,16 @@ class TestCalendarTool:
     @pytest.mark.asyncio
     async def test_calendar_tool_structure(self):
         """Test that calendar tool returns proper JSON structure"""
-        from models.calendar_tool import CalendarOperation
-        
         # Test list operation (should handle gracefully even without calendar access)
         operation = CalendarOperation(
             operation="list",
             start_date=datetime.now(),
             end_date=datetime.now() + timedelta(days=1)
         )
-        
+
         result = await manage_calendar(operation)
-        
-        # Should return JSON string
-        assert isinstance(result, str)
-        
-        # Should be parseable as JSON
-        try:
-            parsed = json.loads(result)
-            assert isinstance(parsed, (dict, list))
-        except json.JSONDecodeError:
-            # If not JSON, should at least be a string response
-            assert len(result) > 0
+        assert isinstance(result, CalendarResponse)
+        assert result.status in {"success", "error"}
 
 
 class TestNLPTool:
@@ -62,17 +51,10 @@ class TestNLPTool:
         ]
         
         for text in test_texts:
-            result = await basic_nlp_processing(text)
-            
-            # Should return JSON string
-            assert isinstance(result, str)
-            
-            # Should be parseable as JSON
-            parsed = json.loads(result)
-            assert "raw_text" in parsed
-            assert "intent" in parsed
-            assert "temporal_references" in parsed
-            assert parsed["raw_text"] == text
+            result = await process_language(NLPOperation(text=text))
+            assert isinstance(result, NLPResponse)
+            assert result.raw_text == text
+            assert isinstance(result.temporal_references, list)
 
 
 class TestPydanticModels:
@@ -166,8 +148,7 @@ class TestIntegration:
         
         required_dirs = [
             'src',
-            'src/agents',
-            'src/tools', 
+            'src/tools',
             'src/models',
             'src/cli',
             'src/guardrails',
