@@ -2,7 +2,7 @@
 Input validation guardrails for the planning assistant
 """
 from typing import List
-from openai_agents import Agent, Runner, InputGuardrail, GuardrailFunctionOutput
+from agents import Agent, Runner, InputGuardrail, GuardrailFunctionOutput
 from pydantic import BaseModel
 
 

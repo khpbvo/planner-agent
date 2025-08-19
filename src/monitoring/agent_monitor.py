@@ -43,7 +43,7 @@ class AgentMonitor:
                         result = await func(*args, **kwargs)
                         
                         # Log successful completion
-                        self.tracer._add_event(self.tracer._create_event(
+                        self.tracer._add_event(self.tracer.create_event(
                             event_type=TraceEventType.AGENT_CALL,
                             level=TraceLevel.INFO,
                             agent_name=agent_name,
@@ -81,7 +81,7 @@ class AgentMonitor:
                         result = func(*args, **kwargs)
                         
                         # Log successful completion
-                        self.tracer._add_event(self.tracer._create_event(
+                        self.tracer._add_event(self.tracer.create_event(
                             event_type=TraceEventType.AGENT_CALL,
                             level=TraceLevel.INFO,
                             agent_name=agent_name,
@@ -150,7 +150,7 @@ class AgentMonitor:
                             result_data = {"result_length": len(str(result))}
                         
                         # Log successful completion
-                        self.tracer._add_event(self.tracer._create_event(
+                        self.tracer._add_event(self.tracer.create_event(
                             event_type=TraceEventType.TOOL_CALL,
                             level=TraceLevel.DEBUG,
                             tool_name=tool_name,
@@ -208,7 +208,7 @@ class AgentMonitor:
                             result_data = {"result_length": len(str(result))}
                         
                         # Log successful completion
-                        self.tracer._add_event(self.tracer._create_event(
+                        self.tracer._add_event(self.tracer.create_event(
                             event_type=TraceEventType.TOOL_CALL,
                             level=TraceLevel.DEBUG,
                             tool_name=tool_name,
@@ -293,11 +293,16 @@ class MonitoringMixin:
             return getattr(super(), method_name)(*args, **kwargs)
 
 
-# Add monitoring method to the tracer class
-def _create_event(self, **kwargs):
-    """Helper method to create trace events"""
-    from .tracer import TraceEvent
-    return TraceEvent(**kwargs)
+# Ensure tracer instances have a helper to create TraceEvent instances
+try:
+    tracer_cls = get_tracer().__class__
+    if not hasattr(tracer_cls, "_create_event"):
+        from .tracer import TraceEvent as _TraceEvent
 
-# Monkey patch the tracer to add the helper method
-get_tracer().__class__._create_event = _create_event
+        def _create_event(self, **kwargs):
+            return _TraceEvent(**kwargs)
+
+        setattr(tracer_cls, "_create_event", _create_event)
+except Exception:
+    # Non-fatal; creating events is best-effort for richer logs
+    pass

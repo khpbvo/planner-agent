@@ -14,7 +14,7 @@ import json
 import spacy
 from spacy.tokens import Doc, Span, Token
 
-from ..models.context import EntityContext, PlanningContext, UserPreferences
+from models.context import EntityContext, PlanningContext, UserPreferences
 
 
 class ContextScope(str, Enum):

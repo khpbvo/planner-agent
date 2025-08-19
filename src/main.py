@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from config import config
 from cli.interface import PlannerCLI
-from agents import create_orchestrator_agent
+from agent_modules import create_orchestrator_agent
 
 
 def setup_logging():

@@ -16,10 +16,10 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 import os
 from pathlib import Path
-from openai_agents import Runner, SQLiteSession
-from openai_agents.exceptions import InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered
-from ..monitoring.tracer import get_tracer, init_tracer
-from ..monitoring.dashboard import get_dashboard
+from agents import Runner, SQLiteSession
+from agents import InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered
+from monitoring.tracer import get_tracer, init_tracer
+from monitoring.dashboard import get_dashboard
 
 console = Console()
 

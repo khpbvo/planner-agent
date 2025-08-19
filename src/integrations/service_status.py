@@ -129,7 +129,7 @@ class ServiceStatusManager:
             }
         
         try:
-            from .gmail_oauth import GmailAuthManager
+            from gmail_oauth import GmailAuthManager
             
             auth_manager = GmailAuthManager(self.config)
             

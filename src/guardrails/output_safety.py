@@ -2,7 +2,7 @@
 Output safety guardrails for the planning assistant
 """
 from typing import List
-from openai_agents import Agent, Runner, OutputGuardrail, GuardrailFunctionOutput
+from agents import Agent, Runner, OutputGuardrail, GuardrailFunctionOutput
 from pydantic import BaseModel
 
 

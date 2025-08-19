@@ -5,14 +5,14 @@ Enhanced with advanced context management capabilities
 import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from openai_agents import function_tool
+from agents import function_tool
 from pydantic import BaseModel
 import dateparser
 import spacy
 from spacy.tokens import Doc
 
-from ..models.context import EntityContext, ExtractedEntity, TemporalReference
-from ..nlp.context_manager import AdvancedNLPContextManager
+from models.context import EntityContext, ExtractedEntity, TemporalReference
+from nlp.context_manager import AdvancedNLPContextManager
 
 
 class NLPOperation(BaseModel):
@@ -39,7 +39,7 @@ class ContextQuery(BaseModel):
 _nlp_model = None
 _context_managers: Dict[str, AdvancedNLPContextManager] = {}  # session_id -> context_manager
 
-@function_tool
+@function_tool(strict_json_schema=False)
 async def process_language(operation_input: NLPOperation) -> str:
         """
         Process natural language text using advanced NLP and context management
@@ -359,7 +359,7 @@ async def basic_nlp_processing(text: str) -> str:
     return json.dumps(result, indent=2)
 
 
-@function_tool
+@function_tool(strict_json_schema=False)
 async def query_context(query_input: ContextQuery) -> str:
     """
     Query contextual information from conversation history

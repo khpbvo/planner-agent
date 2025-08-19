@@ -3,13 +3,13 @@ Smart Planning Agent with intelligent scheduling and task management logic
 """
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta, time
-from openai_agents import Agent, function_tool
+from agents import Agent, function_tool
 from pydantic import BaseModel
 import json
 
-from ..models.task import Task, TaskPriority
-from ..models.event import CalendarEvent
-from ..models.context import UserPreferences, PlanningContext
+from models.task import Task, TaskPriority
+from models.event import CalendarEvent
+from models.context import UserPreferences, PlanningContext
 
 
 class PlanningRequest(BaseModel):
@@ -44,7 +44,7 @@ class PlanningRecommendation(BaseModel):
     reasoning: str
 
 
-@function_tool
+@function_tool(strict_json_schema=False)
 async def smart_planning(request: PlanningRequest) -> str:
     """
     Intelligent planning operations for scheduling and task management

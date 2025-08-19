@@ -5,10 +5,10 @@ import json
 import subprocess
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-from openai_agents import function_tool
+from agents import function_tool
 from pydantic import BaseModel
 
-from ..models.event import CalendarEvent, EventRecurrence
+from models.event import CalendarEvent, EventRecurrence
 
 
 class CalendarOperation(BaseModel):
@@ -22,57 +22,61 @@ class CalendarOperation(BaseModel):
 
 
 @function_tool
-async def manage_calendar(operation_input: CalendarOperation) -> str:
-        """
-        Manage calendar events in MacOS Calendar app
-        
-        Args:
-            operation_input: Calendar operation details
-        """
-        operation = operation_input.operation
-        
+async def manage_calendar(
+    operation: str,
+    calendar_name: str = "Calendar",
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    event_id: Optional[str] = None,
+    event_data_json: Optional[str] = None
+) -> str:
+        """Manage calendar events in MacOS Calendar app"""
+        # Parse dates
+        parsed_start = None
+        parsed_end = None
+        if start_date:
+            try:
+                parsed_start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except Exception:
+                parsed_start = None
+        if end_date:
+            try:
+                parsed_end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except Exception:
+                parsed_end = None
+
         if operation == "list":
-            return await list_events(
-                operation_input.calendar_name,
-                operation_input.start_date,
-                operation_input.end_date
-            )
-        
+            return await list_events(calendar_name, parsed_start, parsed_end)
         elif operation == "create":
-            if not operation_input.event_data:
+            if not event_data_json:
                 return "Error: event_data required for create operation"
-            return await create_event(
-                operation_input.calendar_name,
-                operation_input.event_data
-            )
-        
+            try:
+                event_data = json.loads(event_data_json)
+            except Exception as e:
+                return json.dumps({"error": f"Invalid event_data_json: {e}"})
+            return await create_event(calendar_name, event_data)
         elif operation == "update":
-            if not operation_input.event_id or not operation_input.event_data:
+            if not event_id or not event_data_json:
                 return "Error: event_id and event_data required for update operation"
-            return await update_event(
-                operation_input.event_id,
-                operation_input.event_data,
-                operation_input.calendar_name
-            )
-        
+            try:
+                event_data = json.loads(event_data_json)
+            except Exception as e:
+                return json.dumps({"error": f"Invalid event_data_json: {e}"})
+            return await update_event(event_id, event_data, calendar_name)
         elif operation == "delete":
-            if not operation_input.event_id:
+            if not event_id:
                 return "Error: event_id required for delete operation"
-            return await delete_event(
-                operation_input.event_id,
-                operation_input.calendar_name
-            )
-        
+            return await delete_event(event_id, calendar_name)
         elif operation == "find_free_slots":
             return await find_free_slots(
-                operation_input.start_date or datetime.now(),
-                operation_input.end_date or (datetime.now() + timedelta(days=7)),
-                operation_input.calendar_name
+                parsed_start or datetime.now(),
+                parsed_end or (datetime.now() + timedelta(days=7)),
+                calendar_name
             )
-        
         else:
             return f"Unknown operation: {operation}"
-    
+
+
 def create_calendar_tool():
     """Create the calendar tool for MacOS Calendar integration"""
     return manage_calendar

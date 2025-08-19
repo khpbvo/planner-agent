@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
 from rich.markdown import Markdown
-from openai_agents import Runner, SQLiteSession
+from agents import Runner, SQLiteSession
 from openai.types.responses import ResponseTextDeltaEvent
 
 console = Console()

@@ -12,11 +12,13 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.config import Config
-from src.agents.orchestrator import create_orchestrator_agent
-from src.agents.handoffs import HandoffRequest, create_handoff_coordinator
-from src.models.context import PlanningContext, EntityContext, UserPreferences
-from openai_agents import SQLiteSession, Runner
+sys.path.insert(0, str(project_root / 'src'))
+
+from config import Config
+from agent_modules.orchestrator import create_orchestrator_agent
+from agent_modules.handoffs import HandoffRequest, create_handoff_coordinator
+from models.context import PlanningContext, EntityContext, UserPreferences
+from agents import SQLiteSession, Runner
 
 
 async def demo_basic_handoffs():

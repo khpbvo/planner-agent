@@ -4,7 +4,7 @@ Gmail integration tool using Google API
 import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from openai_agents import function_tool
+from agents import function_tool
 from pydantic import BaseModel
 import base64
 from email.mime.text import MIMEText
@@ -23,7 +23,7 @@ class GmailOperation(BaseModel):
 _gmail_config = None
 _gmail_auth_manager = None
 
-@function_tool
+@function_tool(strict_json_schema=False)
 async def manage_emails(operation_input: GmailOperation) -> str:
         """
         Manage emails in Gmail with full OAuth integration
@@ -48,7 +48,7 @@ async def manage_emails(operation_input: GmailOperation) -> str:
         
         # Initialize auth manager if needed
         if not _gmail_auth_manager:
-            from ..integrations.gmail_oauth import GmailAuthManager
+            from integrations.gmail_oauth import GmailAuthManager
             global _gmail_auth_manager
             _gmail_auth_manager = GmailAuthManager(_gmail_config)
         

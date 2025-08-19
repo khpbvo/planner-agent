@@ -6,12 +6,12 @@ between specialized agents based on context and task complexity.
 """
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
-from openai_agents import Agent, function_tool, Handoff
+from agents import Agent, function_tool, Handoff
 from pydantic import BaseModel
 import json
 
-from ..models.context import PlanningContext, EntityContext
-from ..config import Config
+from models.context import PlanningContext, EntityContext
+from config import Config
 
 
 class HandoffRequest(BaseModel):
@@ -305,7 +305,7 @@ CONTEXT DATA:
 
 
 # Function tools for handoff management
-@function_tool
+@function_tool(strict_json_schema=False)
 async def request_agent_handoff(handoff_request: HandoffRequest) -> str:
     """Request a handoff to a specialized agent"""
     
@@ -344,7 +344,7 @@ async def request_agent_handoff(handoff_request: HandoffRequest) -> str:
         }, indent=2)
 
 
-@function_tool
+@function_tool(strict_json_schema=False)
 async def analyze_handoff_patterns() -> str:
     """Analyze handoff patterns and efficiency"""
     

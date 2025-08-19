@@ -47,7 +47,7 @@ class TraceEvent:
     """A single trace event"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)
-    event_type: TraceEventType = TraceEventType.INFO
+    event_type: TraceEventType = TraceEventType.AGENT_CALL
     level: TraceLevel = TraceLevel.INFO
     agent_name: Optional[str] = None
     tool_name: Optional[str] = None
@@ -433,6 +433,10 @@ class PlanningTracer:
             self.active_conversations[event.session_id].add_event(event)
         
         self._log_event(event)
+
+    # Public factory for creating events (used by monitoring wrappers)
+    def create_event(self, **kwargs) -> TraceEvent:
+        return TraceEvent(**kwargs)
     
     def _update_event_duration(self, event_id: str, duration_ms: float):
         """Update event with duration"""

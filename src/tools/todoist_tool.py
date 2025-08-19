@@ -4,11 +4,11 @@ Todoist integration tool using the Todoist API
 import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from openai_agents import function_tool
+from agents import function_tool
 from pydantic import BaseModel
 from todoist_api_python.api import TodoistAPI
 
-from ..models.task import TodoistTask, TaskPriority
+from models.task import TodoistTask, TaskPriority
 
 
 class TodoistOperation(BaseModel):
@@ -23,7 +23,7 @@ class TodoistOperation(BaseModel):
 # Global API client (will be initialized in create_todoist_tool)
 _todoist_api = None
 
-@function_tool
+@function_tool(strict_json_schema=False)
 async def manage_tasks(operation_input: TodoistOperation) -> str:
         """
         Manage tasks in Todoist
