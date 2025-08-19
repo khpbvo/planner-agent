@@ -17,14 +17,19 @@ from agent_modules import create_orchestrator_agent
 
 def setup_logging():
     """Configure logging for the application"""
+    # Ensure the logs directory exists before configuring logging
+    log_dir = Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging.basicConfig(
         level=getattr(logging, config.log_level),
         format=log_format,
         handlers=[
-            logging.FileHandler("logs/planner.log"),
+            logging.FileHandler(log_dir / "planner.log"),
             logging.StreamHandler()
-        ]
+        ],
+        force=True
     )
     
     # Set specific loggers to warning to reduce noise
