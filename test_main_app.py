@@ -7,6 +7,7 @@ import sys
 import os
 from pathlib import Path
 from unittest.mock import Mock, patch, AsyncMock
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 os.environ["OPENAI_API_KEY"] = "test-key"
 
 
+@pytest.mark.asyncio
 async def test_main_app():
     """Test the main application startup and basic functionality"""
     from config import config
