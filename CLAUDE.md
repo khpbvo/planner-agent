@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚀 Quick Start for New Assistants
+
+### Essential Files to Read First
+1. **Documentation**: Start with `/Docs/index.md` - OpenAI Agents SDK documentation
+2. **Main Entry**: `src/main.py` - Application entry point and initialization
+3. **Orchestrator**: `src/agent_modules/orchestrator.py` - Central agent coordination
+4. **Models**: `src/models/context.py` - Core data models (PlanningContext, EntityContext)
+5. **Tools**: `src/tools/__init__.py` - Tool factory functions
+6. **Tests**: `tests/test_integration.py` - Understanding component interactions
+
+### Key Import Pattern
+```python
+# CORRECT: The package is installed as 'openai-agents' but imported as 'agents'
+from agents import Agent, Runner, function_tool, SQLiteSession
+# NOT: from openai_agents import ...
+```
+
 ## Project Overview
 
 This is a **production-ready AI Planning Assistant** that uses the OpenAI Agents SDK to integrate MacOS Calendar, Todoist, and Gmail through natural language conversations. The system features a sophisticated multi-agent architecture with intelligent handoffs, advanced NLP context management, and comprehensive monitoring capabilities.
@@ -15,6 +32,29 @@ The project now includes:
 - **Smart Planning**: Optimal scheduling with workload analysis and conflict resolution
 - **Production Monitoring**: Real-time tracing, dashboards, and performance analytics
 - **Safety & Security**: Input/output guardrails and comprehensive error handling
+
+### 🔧 Recent Debugging & Fixes (December 2024)
+
+#### Integration Issues Resolved
+1. **Import Corrections**: Confirmed `from agents import` is correct (not `openai_agents`)
+2. **Model Attribute Fixes**: 
+   - `PlanningContext.entities` → `PlanningContext.entity_context`
+   - `PlanningContext.preferences` → `PlanningContext.user_preferences`
+3. **Tool Handling**: Tools are `FunctionTool` objects with `on_invoke_tool` method
+4. **Test Suite**: Created comprehensive tests in `tests/test_imports_and_agents.py` and `tests/test_integration.py`
+
+#### Testing Commands
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Test specific components
+python -m pytest tests/test_integration.py -v
+python -m pytest tests/test_imports_and_agents.py -v
+
+# Quick application test
+python test_main_app.py
+```
 
 ## Development Commands
 
@@ -133,9 +173,15 @@ Uses sophisticated "agents-as-tools" pattern with intelligent handoffs:
 
 ### Correct Imports
 ```python
-from openai_agents import Agent, Runner, function_tool, SQLiteSession
+from agents import Agent, Runner, function_tool, SQLiteSession  # Note: NOT openai_agents
 from openai.types.responses import ResponseTextDeltaEvent
 ```
+
+### Common Pitfalls to Avoid
+1. **Import Names**: Always use `from agents import`, not `from openai_agents import`
+2. **Tool Invocation**: Tools are FunctionTool objects - use `tool.on_invoke_tool(ctx, args)` not `tool(args)`
+3. **Model Attributes**: Check exact attribute names in models (e.g., `entity_context` not `entities`)
+4. **Context Passing**: Always use `RunContextWrapper` when invoking tools manually
 
 ### Agent Creation Pattern
 ```python
@@ -252,12 +298,32 @@ async for event in result.stream_events():
 
 ## Testing Approach
 
+### Quick Verification
+```bash
+# 1. Run the test suite
+python -m pytest tests/ -v
+
+# 2. Test application startup
+python test_main_app.py
+
+# 3. Run the actual application
+python src/main.py
+```
+
 ### Basic Functionality Testing
 Run the CLI and test with natural language:
 - "What's on my calendar today?"
 - "Add a task to review the report by Friday"  
 - "Schedule a meeting with John tomorrow at 2pm"
 - "Check my emails and create tasks for important items"
+
+### Debugging Integration Issues
+When debugging agent/tool integration:
+1. Check imports are from `agents` not `openai_agents`
+2. Verify tool creation returns `FunctionTool` objects
+3. Check model attribute names match exactly
+4. Review trace files in `src/data/traces/` for error details
+5. Run integration tests: `python -m pytest tests/test_integration.py -v`
 
 ### Advanced Feature Testing
 Test sophisticated capabilities:
@@ -281,7 +347,36 @@ python examples/nlp_context_demo.py      # Advanced context management
 python examples/monitoring_demo.py       # System monitoring
 ```
 
-## Common Issues
+## Common Issues & Solutions
+
+### Import Errors
+```python
+# ❌ WRONG: ModuleNotFoundError: No module named 'openai_agents'
+from openai_agents import Agent
+
+# ✅ CORRECT: The package installs as 'openai-agents' but imports as 'agents'
+from agents import Agent
+```
+
+### Tool Invocation Errors
+```python
+# ❌ WRONG: TypeError: 'FunctionTool' object is not callable
+result = await my_tool(args)
+
+# ✅ CORRECT: Use the on_invoke_tool method
+from agents import RunContextWrapper
+ctx = RunContextWrapper(context=None)
+result = await my_tool.on_invoke_tool(ctx, json.dumps(args))
+```
+
+### Model Attribute Errors
+```python
+# ❌ WRONG: AttributeError: 'PlanningContext' object has no attribute 'entities'
+context.entities
+
+# ✅ CORRECT: Use the actual attribute name
+context.entity_context
+```
 
 ### Calendar Access
 macOS requires calendar permissions. Grant in:
@@ -396,4 +491,37 @@ pip install rich prompt-toolkit
 
 ---
 
-**Current Status**: The AI Planning Assistant is now feature-complete with advanced multi-agent capabilities, sophisticated NLP context management, and production-ready monitoring. The system demonstrates the full potential of OpenAI Agents SDK with intelligent coordination, comprehensive integrations, and enterprise-grade reliability.
+## File Structure Overview
+
+```
+planner-agent/
+├── src/
+│   ├── main.py                 # Entry point
+│   ├── agent_modules/           # Agent implementations
+│   │   ├── orchestrator.py      # Main orchestrator (IMPORTANT)
+│   │   ├── handoffs.py          # Handoff coordination
+│   │   └── smart_planner.py     # Planning algorithms
+│   ├── tools/                   # Tool implementations
+│   │   ├── __init__.py          # Tool factories (START HERE)
+│   │   ├── calendar_tool.py     # MacOS Calendar integration
+│   │   ├── todoist_tool.py      # Todoist integration
+│   │   └── gmail_tool.py        # Gmail integration
+│   ├── models/                  # Data models
+│   │   ├── context.py           # PlanningContext, EntityContext (IMPORTANT)
+│   │   ├── calendar_tool.py     # Calendar operation models
+│   │   └── task.py              # Task models
+│   └── cli/                     # CLI interface
+│       └── interface.py          # User interaction
+├── tests/
+│   ├── test_imports_and_agents.py  # Import and basic tests
+│   ├── test_integration.py         # Integration tests (HELPFUL)
+│   └── test_basic_functionality.py # Component tests
+├── Docs/                        # OpenAI Agents SDK documentation
+│   ├── index.md                 # SDK overview (READ FIRST)
+│   ├── agents.md                # Agent patterns
+│   ├── tools.md                 # Tool implementation
+│   └── handoffs.md              # Handoff patterns
+└── test_main_app.py            # Quick application test
+```
+
+**Current Status**: The AI Planning Assistant is now feature-complete with advanced multi-agent capabilities, sophisticated NLP context management, and production-ready monitoring. All integration issues have been resolved and comprehensive tests are in place. The system demonstrates the full potential of OpenAI Agents SDK with intelligent coordination, comprehensive integrations, and enterprise-grade reliability.

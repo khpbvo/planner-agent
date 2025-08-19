@@ -10,7 +10,7 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from src.tools.calendar_tool import _manage_calendar_impl as manage_calendar
+# Calendar tool will be imported in the test method
 from src.tools.nlp_tool import process_language, NLPOperation, NLPResponse
 from src.models.calendar_tool import CalendarOperation, CalendarResponse
 from src.models.task import Task, TaskPriority
@@ -24,6 +24,9 @@ class TestCalendarTool:
     @pytest.mark.asyncio
     async def test_calendar_tool_structure(self):
         """Test that calendar tool returns proper JSON structure"""
+        from tools.calendar_tool import _manage_calendar_impl
+        from models.calendar_tool import CalendarResponse as CR
+        
         # Test list operation (should handle gracefully even without calendar access)
         operation = CalendarOperation(
             operation="list",
@@ -31,8 +34,8 @@ class TestCalendarTool:
             end_date=datetime.now() + timedelta(days=1)
         )
 
-        result = await manage_calendar(operation)
-        assert isinstance(result, CalendarResponse)
+        result = await _manage_calendar_impl(operation)
+        assert isinstance(result, CR)
         assert result.status in {"success", "error"}
 
 

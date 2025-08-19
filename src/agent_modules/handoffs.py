@@ -101,7 +101,7 @@ class HandoffCoordinator:
         """Analyze if a handoff is needed based on context"""
         
         # Extract key entities and intents
-        entities = current_context.entities
+        entities = current_context.entity_context
         
         # Determine if specialized agent is needed
         target_agent = self._determine_target_agent(user_request, entities, current_agent)
@@ -114,7 +114,7 @@ class HandoffCoordinator:
             handoff_context = {
                 "original_request": user_request,
                 "extracted_entities": entities.model_dump() if entities else {},
-                "user_preferences": current_context.preferences.model_dump() if current_context.preferences else {},
+                "user_preferences": current_context.user_preferences.model_dump() if current_context.user_preferences else {},
                 "session_id": current_context.session_id,
                 "timestamp": datetime.now().isoformat()
             }
