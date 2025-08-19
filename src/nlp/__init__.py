@@ -10,7 +10,7 @@ Provides sophisticated natural language processing capabilities including:
 - Entity relationship mapping
 """
 
-from context_manager import (
+from .context_manager import (
     AdvancedNLPContextManager,
     ContextualEntity,
     ConversationTurn,
