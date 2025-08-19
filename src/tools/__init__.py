@@ -73,7 +73,12 @@ def create_todoist_tool(api_key: Optional[str]):
                 message="Todoist not configured",
                 suggestion="Set TODOIST_API_KEY in your environment",
                 required_variables=["TODOIST_API_KEY"],
-            )
+        async def manage_tasks(operation: str) -> Dict[str, Any]:
+            return ToolError(
+                message="Todoist not configured",
+                suggestion="Set TODOIST_API_KEY in your environment",
+                required_variables=["TODOIST_API_KEY"],
+            ).to_dict()
 
         return manage_tasks
 
