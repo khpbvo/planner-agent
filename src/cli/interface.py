@@ -211,15 +211,21 @@ Welcome to your intelligent planning assistant that integrates:
                         # Get tool name from raw_item - handle different tool call types
                         tool_name = "Unknown tool"
                         raw_item = event.item.raw_item
-                        
-                        # Try different ways to get the tool name
-                        if hasattr(raw_item, 'function') and hasattr(raw_item.function, 'name'):
+
+                        # Try different ways to get the tool name in priority order
+                        if hasattr(raw_item, 'tool_name'):
+                            tool_name = raw_item.tool_name
+                        elif hasattr(raw_item, 'id'):
+                            tool_name = raw_item.id
+                        elif hasattr(raw_item, 'function') and hasattr(raw_item.function, 'name'):
                             tool_name = raw_item.function.name
                         elif hasattr(raw_item, 'name'):
                             tool_name = raw_item.name
                         elif hasattr(raw_item, 'type'):
                             tool_name = f"{raw_item.type} tool"
-                        
+                        else:
+                            console.log("Debug: tool call missing name or identifier")
+
                         console.print(f"[dim]🔧 Calling tool: {tool_name}[/dim]")
                     elif event.item.type == "tool_call_output_item":
                         console.print(f"[dim]✓ Tool completed[/dim]")
