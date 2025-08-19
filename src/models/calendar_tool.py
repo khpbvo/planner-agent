@@ -16,10 +16,4 @@ class CalendarOperation(BaseModel):
 
 class CalendarResponse(BaseModel):
     """Structured response from calendar operations"""
-    status: str
-    message: Optional[str] = None
-    events: Optional[List[Any]] = None
-    event: Optional[Any] = None
-    free_slots: Optional[List[Any]] = None
-    total_free_slots: Optional[int] = None
-    error: Optional[str] = None
+    result: str

@@ -11,7 +11,15 @@ from agents import function_tool
 def create_calendar_tool():
     """Return the calendar tool (lazy-imports the module)."""
     from .calendar_tool import manage_calendar
-    return manage_calendar
+    from ..models.calendar_tool import CalendarOperation, CalendarResponse
+    from agents import function_tool
+    
+    # Wrap with function_tool decorator
+    @function_tool(strict_mode=False)
+    async def calendar_tool(operation: CalendarOperation) -> CalendarResponse:
+        return await manage_calendar(operation)
+    
+    return calendar_tool
 
 
 def create_nlp_tool(spacy_model: str = "en_core_web_sm"):

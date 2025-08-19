@@ -1,48 +1,50 @@
 from __future__ import annotations
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
+import json
 from models.calendar_tool import CalendarOperation, CalendarResponse
 
 
-async def manage_calendar(operation_input: CalendarOperation) -> CalendarResponse:
+async def manage_calendar(operation: CalendarOperation) -> CalendarResponse:
     """Manage calendar events in MacOS Calendar app"""
-    operation = operation_input.operation
-    calendar_name = operation_input.calendar_name or "Calendar"
-    start_date = operation_input.start_date
-    end_date = operation_input.end_date
-    event_id = operation_input.event_id
-    event_data = operation_input.event_data
+    operation_name = operation.operation
+    calendar_name = operation.calendar_name or "Calendar"
+    start_date = operation.start_date
+    end_date = operation.end_date
+    event_id = operation.event_id
+    event_data = operation.event_data
 
-    if operation == "list":
+    if operation_name == "list":
         data = await list_events(calendar_name, start_date, end_date)
-        return CalendarResponse(**data)
-    elif operation == "create":
+        return CalendarResponse(result=json.dumps(data))
+    elif operation_name == "create":
         if not event_data:
-            return CalendarResponse(status="error", message="event_data required for create operation")
+            error_data = {"status": "error", "message": "event_data required for create operation"}
+            return CalendarResponse(result=json.dumps(error_data))
         data = await create_event(calendar_name, event_data)
-        return CalendarResponse(**data)
-    elif operation == "update":
+        return CalendarResponse(result=json.dumps(data))
+    elif operation_name == "update":
         if not event_id or not event_data:
-            return CalendarResponse(status="error", message="event_id and event_data required for update operation")
+            error_data = {"status": "error", "message": "event_id and event_data required for update operation"}
+            return CalendarResponse(result=json.dumps(error_data))
         data = await update_event(event_id, event_data, calendar_name)
-        return CalendarResponse(**data)
-    elif operation == "delete":
+        return CalendarResponse(result=json.dumps(data))
+    elif operation_name == "delete":
         if not event_id:
-            return CalendarResponse(status="error", message="event_id required for delete operation")
+            error_data = {"status": "error", "message": "event_id required for delete operation"}
+            return CalendarResponse(result=json.dumps(error_data))
         data = await delete_event(event_id, calendar_name)
-        return CalendarResponse(**data)
-    elif operation == "find_free_slots":
+        return CalendarResponse(result=json.dumps(data))
+    elif operation_name == "find_free_slots":
         start = start_date or datetime.now()
         end = end_date or (start + timedelta(days=7))
         data = await find_free_slots(start, end, calendar_name)
-        return CalendarResponse(**data)
+        return CalendarResponse(result=json.dumps(data))
     else:
-        return CalendarResponse(status="error", message=f"Unknown operation: {operation}")
+        error_data = {"status": "error", "message": f"Unknown operation: {operation_name}"}
+        return CalendarResponse(result=json.dumps(error_data))
 
 
-def create_calendar_tool():
-    """Create the calendar tool for MacOS Calendar integration"""
-    return manage_calendar
 
 
 async def list_events(

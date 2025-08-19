@@ -33,7 +33,11 @@ class TestCalendarTool:
 
         result = await manage_calendar(operation)
         assert isinstance(result, CalendarResponse)
-        assert result.status in {"success", "error"}
+        
+        # Parse the JSON result
+        import json
+        parsed_result = json.loads(result.result)
+        assert parsed_result["status"] in {"success", "error"}
 
 
 class TestNLPTool:
