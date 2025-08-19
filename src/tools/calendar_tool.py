@@ -4,10 +4,11 @@ import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from pydantic import BaseModel
+from agents import function_tool
 
-from models.event import CalendarEvent, EventRecurrence
-from models.calendar_tool import CalendarOperation, CalendarResponse
-from models import ToolError
+from ..models.event import CalendarEvent, EventRecurrence
+from ..models.calendar_tool import CalendarOperation, CalendarResponse
+from ..models import ToolError
 
 
 class CalendarOperationLegacy(BaseModel):
@@ -19,68 +20,8 @@ class CalendarOperationLegacy(BaseModel):
     event_data_json: Optional[str] = None
 
 
-async def manage_calendar(
-    operation: str,
-    calendar_name: str = "Calendar",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    event_id: Optional[str] = None,
-    event_data_json: Optional[str] = None
-) -> str:
-    """Manage calendar events in MacOS Calendar app (legacy JSON string interface)"""
-    try:
-        # Parse dates if provided
-        parsed_start = None
-        parsed_end = None
-        if start_date:
-            try:
-                parsed_start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            except ValueError:
-                return ToolError(message=f"Invalid start_date format: {start_date}").model_dump_json(indent=2)
-        
-        if end_date:
-            try:
-                parsed_end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-            except ValueError:
-                return ToolError(message=f"Invalid end_date format: {end_date}").model_dump_json(indent=2)
-
-        if operation == "list":
-            return await list_events(calendar_name, parsed_start, parsed_end)
-        elif operation == "create":
-            if not event_data_json:
-                return ToolError(message="event_data required for create operation").model_dump_json(indent=2)
-            try:
-                event_data = json.loads(event_data_json)
-            except Exception as e:
-                return ToolError(message=f"Invalid event_data_json: {e}").model_dump_json(indent=2)
-            return await create_event(calendar_name, event_data)
-        elif operation == "update":
-            if not event_id or not event_data_json:
-                return ToolError(message="event_id and event_data required for update operation").model_dump_json(indent=2)
-            try:
-                event_data = json.loads(event_data_json)
-            except Exception as e:
-                return ToolError(message=f"Invalid event_data_json: {e}").model_dump_json(indent=2)
-            return await update_event(event_id, event_data, calendar_name)
-        elif operation == "delete":
-            if not event_id:
-                return ToolError(message="event_id required for delete operation").model_dump_json(indent=2)
-            return await delete_event(event_id, calendar_name)
-        elif operation == "find_free_slots":
-            return await find_free_slots(
-                parsed_start or datetime.now(),
-                parsed_end or (parsed_start or datetime.now()) + timedelta(days=7),
-                calendar_name
-            )
-        else:
-            return ToolError(message=f"Unknown operation: {operation}").model_dump_json(indent=2)
-
-    except Exception as e:
-        return ToolError(message=f"Unexpected error: {str(e)}").model_dump_json(indent=2)
-
-
-async def manage_calendar_structured(operation_input: CalendarOperation) -> CalendarResponse:
-    """Manage calendar events in MacOS Calendar app (structured interface)"""
+async def _manage_calendar_impl(operation_input: CalendarOperation) -> CalendarResponse:
+    """Internal implementation of calendar management"""
     operation = operation_input.operation
     calendar_name = operation_input.calendar_name or "Calendar"
     start_date = operation_input.start_date
@@ -116,6 +57,17 @@ async def manage_calendar_structured(operation_input: CalendarOperation) -> Cale
             return CalendarResponse(status="error", message=f"Unknown operation: {operation}")
     except Exception as e:
         return CalendarResponse(status="error", message=f"Unexpected error: {str(e)}")
+
+
+@function_tool
+async def manage_calendar(operation_input: CalendarOperation) -> CalendarResponse:
+    """Manage calendar events in MacOS Calendar app"""
+    return await _manage_calendar_impl(operation_input)
+
+
+# Remove the legacy function content for now since it's creating syntax issues
+# async def manage_calendar_legacy(operation: str, calendar_name: str = "Calendar") -> str:
+#     pass
 
 
 def create_calendar_tool():

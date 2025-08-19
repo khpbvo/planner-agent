@@ -6,7 +6,7 @@ the application can start even if optional integrations aren't configured.
 from typing import Optional, Dict, Any
 import json
 from agents import function_tool
-from models import ToolError
+from ..models import ToolError
 
 
 def create_calendar_tool():
@@ -58,7 +58,7 @@ def create_todoist_tool(api_key: Optional[str]):
         return manage_tasks
 
     # Lazy import the real tool only if an API key is present
-    from .todoist_tool import manage_tasks as real_manage_tasks
+    from todoist_tool import manage_tasks as real_manage_tasks
     return real_manage_tasks
 
 
@@ -75,7 +75,7 @@ def create_gmail_tool(config):
             }, indent=2)
         return manage_emails
 
-    from .gmail_tool import manage_emails as real_manage_emails
+    from gmail_tool import manage_emails as real_manage_emails
     return real_manage_emails
 
 
