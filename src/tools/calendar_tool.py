@@ -28,6 +28,8 @@ async def _manage_calendar_impl(operation_input: CalendarOperation) -> CalendarR
     end_date = operation_input.end_date
     event_id = operation_input.event_id
     event_data = operation_input.event_data
+    if isinstance(event_data, BaseModel):
+        event_data = event_data.model_dump(mode="json")
 
     try:
         if operation == "list":
