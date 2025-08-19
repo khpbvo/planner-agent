@@ -1,5 +1,6 @@
 """
 NLP tool using SpaCy for entity extraction and temporal parsing
+Enhanced with advanced context management capabilities
 """
 import json
 from typing import List, Optional, Dict, Any
@@ -11,6 +12,7 @@ import spacy
 from spacy.tokens import Doc
 
 from ..models.context import EntityContext, ExtractedEntity, TemporalReference
+from ..nlp.context_manager import AdvancedNLPContextManager
 
 
 class NLPOperation(BaseModel):
@@ -19,35 +21,93 @@ class NLPOperation(BaseModel):
     extract_entities: bool = True
     extract_temporal: bool = True
     extract_intent: bool = True
+    extract_context: bool = True
+    resolve_references: bool = True
     language: str = "en"
+    session_id: Optional[str] = None
 
 
-# Global NLP model (will be initialized in create_nlp_tool)
+class ContextQuery(BaseModel):
+    """Query for context information"""
+    query_type: str  # "entity", "recent", "export", "analytics"
+    entity_text: Optional[str] = None
+    window_size: Optional[int] = None
+    session_id: Optional[str] = None
+
+
+# Global NLP components (will be initialized in create_nlp_tool)
 _nlp_model = None
+_context_managers: Dict[str, AdvancedNLPContextManager] = {}  # session_id -> context_manager
 
 @function_tool
 async def process_language(operation_input: NLPOperation) -> str:
         """
-        Process natural language text using SpaCy
+        Process natural language text using advanced NLP and context management
         
         Args:
             operation_input: NLP operation details
         """
         text = operation_input.text
+        session_id = operation_input.session_id or "default"
         
         if not _nlp_model:
             # Fallback to basic processing without SpaCy
             return await basic_nlp_processing(text)
         
-        # Process text with SpaCy
-        doc = _nlp_model(text)
+        # Get or create context manager for this session
+        if session_id not in _context_managers:
+            _context_managers[session_id] = AdvancedNLPContextManager()
         
-        context = EntityContext(raw_text=text)
+        context_manager = _context_managers[session_id]
         
-        # Extract entities
-        if operation_input.extract_entities:
-            extract_entities(doc, context)
+        # Process the turn with advanced context management
+        if operation_input.extract_context:
+            turn = context_manager.process_turn(text)
+            
+            # Prepare comprehensive response
+            response_data = {
+                "status": "success",
+                "turn_id": turn.turn_id,
+                "processing_timestamp": turn.timestamp.isoformat(),
+                
+                # Basic NLP results
+                "entities": [
+                    {
+                        "text": e.text,
+                        "label": e.label,
+                        "start": e.start,
+                        "end": e.end,
+                        "confidence": e.confidence,
+                        "canonical_id": e.canonical_id,
+                        "resolved_datetime": e.resolved_datetime.isoformat() if e.resolved_datetime else None,
+                        "properties": e.properties
+                    } for e in turn.entities
+                ],
+                
+                "intent": {
+                    "intent": turn.intent,
+                    "confidence": turn.intent_confidence
+                } if operation_input.extract_intent else None,
+                
+                # Advanced context features
+                "resolved_references": turn.resolved_references if operation_input.resolve_references else {},
+                
+                "context_updates": turn.context_updates,
+                
+                "recent_context": context_manager.get_recent_context(3) if operation_input.extract_context else None
+            }
+            
+            return json.dumps(response_data, indent=2)
         
+        else:
+            # Fallback to basic processing
+            doc = _nlp_model(text)
+            context = EntityContext(raw_text=text)
+            
+            # Extract entities
+            if operation_input.extract_entities:
+                extract_entities(doc, context)
+            
         # Extract temporal references
         if operation_input.extract_temporal:
             extract_temporal_references(text, doc, context)
@@ -90,14 +150,39 @@ def create_nlp_tool(model_name: str = "en_core_web_lg"):
     # Load SpaCy model (would need to be downloaded first)
     try:
         _nlp_model = spacy.load(model_name)
+        print(f"✓ Loaded SpaCy model: {model_name}")
     except:
         # Fallback to small model if large isn't available
         try:
             _nlp_model = spacy.load("en_core_web_sm")
+            print("✓ Loaded fallback SpaCy model: en_core_web_sm")
         except:
             _nlp_model = None
+            print("⚠️ No SpaCy models available, using basic NLP processing")
     
     return process_language
+
+
+def create_nlp_tools(model_name: str = "en_core_web_lg"):
+    """Create both NLP processing tools with advanced context management"""
+    create_nlp_tool(model_name)  # Initialize the global model
+    return [process_language, query_context]
+
+
+def get_context_manager(session_id: str = "default") -> Optional[AdvancedNLPContextManager]:
+    """Get the context manager for a specific session"""
+    return _context_managers.get(session_id)
+
+
+def reset_context(session_id: str = "default"):
+    """Reset context for a specific session"""
+    if session_id in _context_managers:
+        del _context_managers[session_id]
+        
+        
+def get_active_sessions() -> List[str]:
+    """Get list of active NLP context sessions"""
+    return list(_context_managers.keys())
 
 
 def extract_entities(doc: Doc, context: EntityContext):
@@ -272,3 +357,89 @@ async def basic_nlp_processing(text: str) -> str:
     }
     
     return json.dumps(result, indent=2)
+
+
+@function_tool
+async def query_context(query_input: ContextQuery) -> str:
+    """
+    Query contextual information from conversation history
+    
+    Args:
+        query_input: Context query details
+    """
+    session_id = query_input.session_id or "default"
+    
+    if session_id not in _context_managers:
+        return json.dumps({
+            "status": "error",
+            "message": f"No context available for session {session_id}",
+            "suggestion": "Process some text first to build context"
+        }, indent=2)
+    
+    context_manager = _context_managers[session_id]
+    
+    try:
+        if query_input.query_type == "entity":
+            if not query_input.entity_text:
+                return json.dumps({
+                    "status": "error", 
+                    "message": "entity_text required for entity query"
+                }, indent=2)
+            
+            entity_context = context_manager.get_context_for_entity(query_input.entity_text)
+            return json.dumps({
+                "status": "success",
+                "query_type": "entity",
+                "entity_text": query_input.entity_text,
+                "context": entity_context
+            }, indent=2)
+        
+        elif query_input.query_type == "recent":
+            window_size = query_input.window_size or 5
+            recent_context = context_manager.get_recent_context(window_size)
+            return json.dumps({
+                "status": "success",
+                "query_type": "recent",
+                "window_size": window_size,
+                "context": recent_context
+            }, indent=2)
+        
+        elif query_input.query_type == "export":
+            full_context = context_manager.export_conversation_context()
+            return json.dumps({
+                "status": "success",
+                "query_type": "export",
+                "conversation_context": full_context
+            }, indent=2)
+        
+        elif query_input.query_type == "analytics":
+            analytics = {
+                "session_id": session_id,
+                "total_turns": len(context_manager.turns),
+                "total_entities": len(context_manager.session_entities),
+                "entity_relationships": len(context_manager.entity_graph),
+                "intent_history_length": len(context_manager.intent_tracker.intent_history),
+                "recent_intents": [
+                    {"intent": intent, "confidence": conf, "timestamp": ts.isoformat()} 
+                    for intent, conf, ts in context_manager.intent_tracker.intent_history[-5:]
+                ]
+            }
+            return json.dumps({
+                "status": "success",
+                "query_type": "analytics", 
+                "analytics": analytics
+            }, indent=2)
+        
+        else:
+            return json.dumps({
+                "status": "error",
+                "message": f"Unknown query type: {query_input.query_type}",
+                "supported_types": ["entity", "recent", "export", "analytics"]
+            }, indent=2)
+    
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "message": f"Context query failed: {str(e)}",
+            "query_type": query_input.query_type
+        }, indent=2)

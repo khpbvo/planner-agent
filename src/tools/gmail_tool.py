@@ -19,13 +19,14 @@ class GmailOperation(BaseModel):
     max_results: int = 10
 
 
-# Global config (will be set in create_gmail_tool)
+# Global config and auth manager (will be set in create_gmail_tool)
 _gmail_config = None
+_gmail_auth_manager = None
 
 @function_tool
 async def manage_emails(operation_input: GmailOperation) -> str:
         """
-        Manage emails in Gmail
+        Manage emails in Gmail with full OAuth integration
         
         Args:
             operation_input: Gmail operation details
@@ -34,31 +35,109 @@ async def manage_emails(operation_input: GmailOperation) -> str:
         
         # Check if Gmail is configured
         if not _gmail_config or not _gmail_config.google_client_id:
-            return "Gmail integration not configured. Please set up Google OAuth credentials."
+            return json.dumps({
+                "status": "error",
+                "message": "Gmail integration not configured",
+                "suggestion": "Please set up Google OAuth credentials in your .env file",
+                "required_variables": [
+                    "GOOGLE_CLIENT_ID",
+                    "GOOGLE_CLIENT_SECRET", 
+                    "GOOGLE_REDIRECT_URI"
+                ]
+            }, indent=2)
         
-        if operation == "list":
-            return await list_emails(operation_input.query, operation_input.max_results)
+        # Initialize auth manager if needed
+        if not _gmail_auth_manager:
+            from ..integrations.gmail_oauth import GmailAuthManager
+            global _gmail_auth_manager
+            _gmail_auth_manager = GmailAuthManager(_gmail_config)
         
-        elif operation == "read":
-            if not operation_input.message_id:
-                return "Error: message_id required for read operation"
-            return await read_email(operation_input.message_id)
+        # Check authentication
+        if not _gmail_auth_manager.is_authenticated():
+            return json.dumps({
+                "status": "error",
+                "message": "Gmail authentication required",
+                "suggestion": "Run the authentication flow first. This will open a browser window.",
+                "action": "authenticate"
+            }, indent=2)
         
-        elif operation == "send":
-            if not operation_input.email_data:
-                return "Error: email_data required for send operation"
-            return await send_email(operation_input.email_data)
-        
-        elif operation == "extract_tasks":
-            return await extract_tasks_from_emails(operation_input.query)
-        
-        elif operation == "mark_read":
-            if not operation_input.message_id:
-                return "Error: message_id required for mark_read operation"
-            return await mark_as_read(operation_input.message_id)
-        
-        else:
-            return f"Unknown operation: {operation}"
+        try:
+            if operation == "list":
+                result = await _gmail_auth_manager.list_messages(
+                    operation_input.query or "", 
+                    operation_input.max_results
+                )
+                return json.dumps(result, indent=2)
+            
+            elif operation == "read":
+                if not operation_input.message_id:
+                    return json.dumps({
+                        "status": "error",
+                        "message": "message_id required for read operation"
+                    }, indent=2)
+                    
+                result = await _gmail_auth_manager.get_message_content(operation_input.message_id)
+                return json.dumps(result, indent=2)
+            
+            elif operation == "extract_tasks":
+                # First get recent emails
+                list_result = await _gmail_auth_manager.list_messages(
+                    operation_input.query or "is:unread OR newer_than:7d", 
+                    min(operation_input.max_results, 20)
+                )
+                
+                if list_result.get("status") == "success":
+                    emails = list_result.get("emails", [])
+                    action_items = await _gmail_auth_manager.extract_action_items(emails)
+                    
+                    return json.dumps({
+                        "status": "success",
+                        "action_items": action_items,
+                        "total_emails_scanned": len(emails),
+                        "total_actions_found": len(action_items)
+                    }, indent=2)
+                else:
+                    return json.dumps(list_result, indent=2)
+            
+            elif operation == "mark_read":
+                if not operation_input.message_id:
+                    return json.dumps({
+                        "status": "error",
+                        "message": "message_id required for mark_read operation"
+                    }, indent=2)
+                    
+                result = await _gmail_auth_manager.mark_as_read(operation_input.message_id)
+                return json.dumps(result, indent=2)
+            
+            elif operation == "authenticate":
+                # Special operation to trigger authentication
+                success = _gmail_auth_manager.authenticate()
+                if success:
+                    return json.dumps({
+                        "status": "success",
+                        "message": "Gmail authentication completed successfully",
+                        "authenticated": True
+                    }, indent=2)
+                else:
+                    return json.dumps({
+                        "status": "error", 
+                        "message": "Gmail authentication failed",
+                        "suggestion": "Check your OAuth credentials and try again"
+                    }, indent=2)
+            
+            else:
+                return json.dumps({
+                    "status": "error",
+                    "message": f"Unknown operation: {operation}",
+                    "supported_operations": ["list", "read", "extract_tasks", "mark_read", "authenticate"]
+                }, indent=2)
+                
+        except Exception as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"Gmail operation failed: {str(e)}",
+                "operation": operation
+            }, indent=2)
     
 def create_gmail_tool(config):
     """Create the Gmail tool for email management"""

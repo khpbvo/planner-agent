@@ -18,6 +18,8 @@ import os
 from pathlib import Path
 from openai_agents import Runner, SQLiteSession
 from openai_agents.exceptions import InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered
+from ..monitoring.tracer import get_tracer, init_tracer
+from ..monitoring.dashboard import get_dashboard
 
 console = Console()
 
@@ -36,6 +38,11 @@ class PlannerCLI:
         self.agent_session = None
         self.streaming_mode = True
         
+        # Initialize monitoring
+        self.tracer = init_tracer()
+        self.dashboard = get_dashboard()
+        self.conversation_trace = None
+        
     def display_welcome(self):
         """Display welcome message and instructions"""
         welcome_text = """
@@ -53,6 +60,9 @@ Welcome to your intelligent planning assistant that integrates:
 - `/status` - Show current integrations status
 - `/sync` - Force sync all services
 - `/stream` - Toggle streaming mode
+- `/handoffs` - Show agent handoff analytics
+- `/monitor` - Open monitoring dashboard
+- `/analytics` - Show system analytics
 - `/clear` - Clear the screen
 - `/exit` or `/quit` - Exit the application
 
@@ -97,17 +107,64 @@ Welcome to your intelligent planning assistant that integrates:
                     db_path="data/conversations.db"
                 )
             
+            # Start conversation tracing if not already started
+            if not self.conversation_trace:
+                self.conversation_trace = self.tracer.start_conversation(
+                    session_id=self.agent_session.session_id
+                )
+            
+            # Trace user input
+            self.tracer._add_event(self.tracer._create_event(
+                event_type="user_input",
+                level="info", 
+                session_id=self.conversation_trace.session_id,
+                message=f"User input: {message[:100]}...",
+                data={"input_length": len(message)}
+            ))
+            
             if self.streaming_mode:
-                return await self._process_streaming(message)
+                result = await self._process_streaming(message)
             else:
-                return await self._process_non_streaming(message)
+                result = await self._process_non_streaming(message)
+            
+            # Trace system output
+            self.tracer._add_event(self.tracer._create_event(
+                event_type="system_output",
+                level="info",
+                session_id=self.conversation_trace.session_id,
+                message=f"System output: {result[:100]}...",
+                data={"output_length": len(result)}
+            ))
+            
+            return result
             
         except InputGuardrailTripwireTriggered as e:
-            return f"🛡️ Input blocked by safety guardrail: {e.guardrail_output.output_info}"
+            error_msg = f"🛡️ Input blocked by safety guardrail: {e.guardrail_output.output_info}"
+            if self.conversation_trace:
+                self.tracer.trace_error(
+                    error=e,
+                    context={"type": "input_guardrail", "message": message},
+                    session_id=self.conversation_trace.session_id
+                )
+            return error_msg
         except OutputGuardrailTripwireTriggered as e:
-            return f"🛡️ Response blocked by safety guardrail: {e.guardrail_output.output_info}"
+            error_msg = f"🛡️ Response blocked by safety guardrail: {e.guardrail_output.output_info}"
+            if self.conversation_trace:
+                self.tracer.trace_error(
+                    error=e,
+                    context={"type": "output_guardrail", "message": message},
+                    session_id=self.conversation_trace.session_id
+                )
+            return error_msg
         except Exception as e:
-            return f"❌ Error processing request: {str(e)}"
+            error_msg = f"❌ Error processing request: {str(e)}"
+            if self.conversation_trace:
+                self.tracer.trace_error(
+                    error=e,
+                    context={"message": message},
+                    session_id=self.conversation_trace.session_id
+                )
+            return error_msg
     
     async def _process_non_streaming(self, message: str) -> str:
         """Process message without streaming"""
@@ -157,7 +214,12 @@ Welcome to your intelligent planning assistant that integrates:
                 
                 elif event.type == "agent_updated_stream_event":
                     # Show agent handoffs
-                    console.print(f"[dim]→ Using: {event.new_agent.name}[/dim]")
+                    console.print(f"[blue]→ Handoff to: {event.new_agent.name}[/blue]")
+                    
+                elif event.type == "handoff_stream_event":
+                    # Show detailed handoff information
+                    if hasattr(event, 'handoff_reason'):
+                        console.print(f"[cyan]🔄 Handoff: {event.handoff_reason}[/cyan]")
             
             # Wait for completion
             await result
@@ -169,6 +231,10 @@ Welcome to your intelligent planning assistant that integrates:
         command = command.lower().strip()
         
         if command in ['/exit', '/quit']:
+            # End conversation trace
+            if self.conversation_trace:
+                self.tracer.end_conversation(self.conversation_trace.session_id)
+                console.print(f"[dim]💾 Conversation trace saved[/dim]")
             console.print("[yellow]Goodbye! 👋[/yellow]")
             return False
             
@@ -191,10 +257,107 @@ Welcome to your intelligent planning assistant that integrates:
             mode = "enabled" if self.streaming_mode else "disabled"
             console.print(f"[cyan]Streaming mode {mode}[/cyan]")
             
+        elif command == '/handoffs':
+            await self.show_handoff_analytics()
+            
+        elif command == '/monitor':
+            console.print("[cyan]Starting monitoring dashboard...[/cyan]")
+            await self.dashboard.run_dashboard()
+            
+        elif command == '/analytics':
+            await self.show_system_analytics()
+            
         else:
             console.print(f"[red]Unknown command: {command}[/red]")
             
         return True
+    
+    async def show_handoff_analytics(self):
+        """Display handoff analytics using the orchestrator"""
+        try:
+            if not self.orchestrator:
+                console.print("[red]❌ Orchestrator not available[/red]")
+                return
+                
+            with console.status("[bold green]Analyzing handoff patterns...", spinner="dots"):
+                # Use the orchestrator to analyze handoff patterns
+                response = await self.process_message("analyze handoff patterns")
+                
+            console.print(Panel(
+                response,
+                title="🔄 Handoff Analytics",
+                border_style="cyan",
+                padding=(1, 2)
+            ))
+            
+        except Exception as e:
+            console.print(f"[red]❌ Error getting handoff analytics: {str(e)}[/red]")
+    
+    async def show_system_analytics(self):
+        """Display comprehensive system analytics"""
+        try:
+            analytics = self.tracer.get_system_analytics()
+            
+            # Overview table
+            overview_table = Table(title="📊 System Overview")
+            overview_table.add_column("Metric", style="cyan")
+            overview_table.add_column("Value", style="white")
+            
+            overview_table.add_row("Total Conversations", str(analytics["total_conversations"]))
+            overview_table.add_row("Active Conversations", str(analytics["active_conversations"]))
+            overview_table.add_row("Completed Conversations", str(analytics["completed_conversations"]))
+            overview_table.add_row("Success Rate", f"{analytics['success_rate']:.1%}")
+            overview_table.add_row("Total Handoffs", str(analytics["total_handoffs"]))
+            
+            console.print(overview_table)
+            
+            # Agent usage table
+            agent_usage = analytics.get("agent_usage", {})
+            if agent_usage:
+                agent_table = Table(title="🤖 Agent Usage")
+                agent_table.add_column("Agent", style="green")
+                agent_table.add_column("Calls", justify="right", style="cyan")
+                
+                for agent, calls in sorted(agent_usage.items(), key=lambda x: x[1], reverse=True):
+                    agent_table.add_row(agent, str(calls))
+                
+                console.print(agent_table)
+            
+            # Tool usage table
+            tool_usage = analytics.get("tool_usage", {})
+            if tool_usage:
+                tool_table = Table(title="🔧 Tool Usage")
+                tool_table.add_column("Tool", style="magenta")
+                tool_table.add_column("Calls", justify="right", style="cyan")
+                
+                for tool, calls in sorted(tool_usage.items(), key=lambda x: x[1], reverse=True):
+                    tool_table.add_row(tool, str(calls))
+                
+                console.print(tool_table)
+            
+            # Performance metrics
+            perf_metrics = analytics.get("performance_metrics", {})
+            if perf_metrics.get("counters") or any(k != "counters" for k in perf_metrics.keys()):
+                perf_table = Table(title="🚀 Performance Metrics")
+                perf_table.add_column("Metric", style="yellow")
+                perf_table.add_column("Value", style="white")
+                
+                # Add counters
+                for counter, value in perf_metrics.get("counters", {}).items():
+                    perf_table.add_row(counter, str(value))
+                
+                # Add duration metrics
+                for metric, stats in perf_metrics.items():
+                    if metric != "counters" and isinstance(stats, dict):
+                        perf_table.add_row(f"{metric} (avg)", f"{stats['avg_ms']:.1f}ms")
+                
+                console.print(perf_table)
+            
+            # Export option
+            console.print("\n💾 Export analytics with: /export <filename>")
+            
+        except Exception as e:
+            console.print(f"[red]❌ Error getting system analytics: {str(e)}[/red]")
     
     async def run(self):
         """Main CLI loop"""

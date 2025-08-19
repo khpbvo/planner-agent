@@ -12,6 +12,8 @@ from ..tools import (
     create_nlp_tool
 )
 from ..guardrails import create_input_guardrails, create_output_guardrails
+from .handoffs import create_handoff_tools, create_handoff_coordinator
+from .smart_planner import create_smart_planning_tool
 
 
 class OrchestratorOutput(BaseModel):
@@ -34,6 +36,11 @@ async def create_orchestrator_agent(config) -> Agent:
     todoist_tool = create_todoist_tool(config.todoist_api_key)
     gmail_tool = create_gmail_tool(config)
     nlp_tool = create_nlp_tool(config.spacy_model)
+    smart_planning_tool = create_smart_planning_tool()
+    handoff_tools = create_handoff_tools()
+    
+    # Initialize handoff coordinator
+    handoff_coordinator = create_handoff_coordinator(config)
     
     # Create specialized agents that will be used as tools
     calendar_agent = Agent(
@@ -93,6 +100,7 @@ async def create_orchestrator_agent(config) -> Agent:
         - Respect user preferences and working hours
         - Prevent overcommitment
         Consider the user's energy levels and productivity patterns.""",
+        tools=[smart_planning_tool],
         model=config.openai_model
     )
     
@@ -112,8 +120,9 @@ async def create_orchestrator_agent(config) -> Agent:
         1. First understand what the user wants using the language processor
         2. Then use the appropriate specialized tool to accomplish the task
         3. Coordinate between multiple tools when needed
-        4. Provide clear, actionable responses
-        5. Always confirm before making changes that affect user data
+        4. Use intelligent handoffs when complex operations require specialized agents
+        5. Provide clear, actionable responses
+        6. Always confirm before making changes that affect user data
         
         Available tools:
         - process_language: For parsing natural language and extracting entities
@@ -121,6 +130,8 @@ async def create_orchestrator_agent(config) -> Agent:
         - manage_tasks: For all Todoist operations
         - manage_emails: For Gmail operations
         - get_planning_advice: For intelligent scheduling suggestions
+        - request_agent_handoff: For delegating complex tasks to specialized agents
+        - analyze_handoff_patterns: For optimizing agent coordination
         
         IMPORTANT GUIDELINES:
         - Always prioritize user privacy and data security
@@ -152,7 +163,7 @@ async def create_orchestrator_agent(config) -> Agent:
                 tool_name="get_planning_advice",
                 tool_description="Get intelligent scheduling and planning suggestions"
             )
-        ],
+        ] + handoff_tools,
         input_guardrails=input_guardrails,
         output_guardrails=output_guardrails,
         model=config.openai_model
