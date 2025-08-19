@@ -11,7 +11,7 @@ from agents import function_tool
 def create_calendar_tool():
     """Return the calendar tool (lazy-imports the module)."""
     from .calendar_tool import manage_calendar
-    from ..models.calendar_tool import CalendarOperation, CalendarResponse
+    from models.calendar_tool import CalendarOperation, CalendarResponse
     from agents import function_tool
     
     # Wrap with function_tool decorator
