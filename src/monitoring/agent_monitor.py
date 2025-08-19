@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Optional, TypeVar, Union
 from datetime import datetime
 import inspect
 import json
+from tools import ToolError
 
 from .tracer import get_tracer, TraceEventType, TraceLevel
 
@@ -136,19 +137,29 @@ class AgentMonitor:
                     
                     try:
                         result = await func(*args, **kwargs)
-                        
-                        # Parse result if it's JSON
-                        result_data = {}
+
+                        # Normalize result to a dictionary
+                        result_data: Dict[str, Any] = {}
                         try:
                             if isinstance(result, str):
                                 parsed = json.loads(result)
+                            elif isinstance(result, ToolError):
+                                parsed = result.to_dict()
+                            elif isinstance(result, dict):
+                                parsed = result
+                            else:
+                                parsed = None
+
+                            if parsed is not None:
                                 result_data = {
                                     "status": parsed.get("status", "unknown"),
-                                    "message": parsed.get("message", "")[:100]  # First 100 chars
+                                    "message": parsed.get("message", "")[:100],
                                 }
-                        except:
+                            else:
+                                result_data = {"result_length": len(str(result))}
+                        except Exception:
                             result_data = {"result_length": len(str(result))}
-                        
+
                         # Log successful completion
                         self.tracer._add_event(self.tracer.create_event(
                             event_type=TraceEventType.TOOL_CALL,
@@ -159,7 +170,7 @@ class AgentMonitor:
                             data=result_data,
                             parent_id=tool_trace_id
                         ))
-                        
+
                         return result
                         
                     except Exception as e:
@@ -194,19 +205,29 @@ class AgentMonitor:
                     
                     try:
                         result = func(*args, **kwargs)
-                        
-                        # Parse result if it's JSON
-                        result_data = {}
+
+                        # Normalize result to a dictionary
+                        result_data: Dict[str, Any] = {}
                         try:
                             if isinstance(result, str):
                                 parsed = json.loads(result)
+                            elif isinstance(result, ToolError):
+                                parsed = result.to_dict()
+                            elif isinstance(result, dict):
+                                parsed = result
+                            else:
+                                parsed = None
+
+                            if parsed is not None:
                                 result_data = {
                                     "status": parsed.get("status", "unknown"),
-                                    "message": parsed.get("message", "")[:100]  # First 100 chars
+                                    "message": parsed.get("message", "")[:100],
                                 }
-                        except:
+                            else:
+                                result_data = {"result_length": len(str(result))}
+                        except Exception:
                             result_data = {"result_length": len(str(result))}
-                        
+
                         # Log successful completion
                         self.tracer._add_event(self.tracer.create_event(
                             event_type=TraceEventType.TOOL_CALL,
@@ -217,7 +238,7 @@ class AgentMonitor:
                             data=result_data,
                             parent_id=tool_trace_id
                         ))
-                        
+
                         return result
                         
                     except Exception as e:

@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 """
-Simple test script to verify basic functionality
+Simple test script to verify basic functionality.
+
+This file is intended to be run manually and is skipped during automated tests.
 """
 import sys
 from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.skip("manual verification script")
+
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 # Test basic imports

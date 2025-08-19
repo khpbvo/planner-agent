@@ -10,7 +10,7 @@ Provides sophisticated natural language processing capabilities including:
 - Entity relationship mapping
 """
 
-from context_manager import (
+from .context_manager import (
     AdvancedNLPContextManager,
     ContextualEntity,
     ConversationTurn,
@@ -18,7 +18,7 @@ from context_manager import (
     ReferenceResolver,
     IntentTracker,
     ContextScope,
-    ReferenceType
+    ReferenceType,
 )
 
 __all__ = [

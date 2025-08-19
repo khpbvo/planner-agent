@@ -39,7 +39,7 @@ class ContextQuery(BaseModel):
 _nlp_model = None
 _context_managers: Dict[str, AdvancedNLPContextManager] = {}  # session_id -> context_manager
 
-@function_tool(strict_json_schema=False)
+@function_tool
 async def process_language(operation_input: NLPOperation) -> str:
         """
         Process natural language text using advanced NLP and context management
@@ -359,7 +359,7 @@ async def basic_nlp_processing(text: str) -> str:
     return json.dumps(result, indent=2)
 
 
-@function_tool(strict_json_schema=False)
+@function_tool
 async def query_context(query_input: ContextQuery) -> str:
     """
     Query contextual information from conversation history
