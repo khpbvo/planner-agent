@@ -38,6 +38,8 @@ class GmailOperation(BaseModel):
     email_data: Optional[EmailPayload] = None
     max_results: int = 10
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class GmailResponse(BaseModel):
     """Structured response for Gmail operations"""
@@ -49,6 +51,8 @@ class GmailResponse(BaseModel):
     total_emails_scanned: Optional[int] = None
     total_actions_found: Optional[int] = None
     data: Optional[Any] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 # Global placeholders for configuration and auth manager

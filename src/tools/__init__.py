@@ -1,86 +1,62 @@
-"""Tool factories with lazy imports and safe stubs.
+"""Factories for optional integration tools.
 
-This module avoids importing heavy/strict-schema tools at import time to ensure
-the application can start even if optional integrations aren't configured.
+Each factory lazily imports its tool implementation so the main
+application can start even when optional dependencies are missing.
+The returned callables are fully compliant with the OpenAI Agents SDK
+and use Pydantic v2 models for both inputs and outputs.
 """
-from typing import Optional, Dict, Any
-import json
+from typing import Optional
 
 
 def create_calendar_tool():
-    """Return the calendar tool (lazy-imports the module)."""
+    """Return the calendar tool."""
     from .calendar_tool import manage_calendar
     return manage_calendar
 
 
 def create_nlp_tool(spacy_model: str = "en_core_web_sm"):
-    """Return a lightweight NLP tool that doesn't require SpaCy to start.
-
-    The full featured NLP tool can be wired later; this stub extracts a minimal
-    intent and an optional naive datetime using simple heuristics.
-    """
-    # Import locally to avoid circular imports
-    from agents import function_tool
-
-    @function_tool
-    async def process_language(text: str) -> str:
-        tl = text.lower()
-        intent = "general_query"
-        if any(k in tl for k in ["schedule", "meeting", "book"]):
-            intent = "schedule_event"
-        elif any(k in tl for k in ["task", "todo", "remind"]):
-            intent = "create_task"
-        elif any(k in tl for k in ["what's on", "list", "show"]):
-            intent = "query_schedule"
-
-        return json.dumps({
-            "raw_text": text,
-            "intent": intent,
-            "entities": [],
-            "temporal_references": [],
-            "people": [],
-            "projects": [],
-            "locations": []
-        }, indent=2)
-
-    return process_language
+    """Return the NLP tool"""
+    from .nlp_tool import process_language_tool
+    return process_language_tool
 
 
 def create_todoist_tool(api_key: Optional[str]):
-    """Return a Todoist tool; if not configured, return a stub that explains it."""
+    """Return a Todoist tool; if not configured, return a stub."""
     from agents import function_tool
-    
+    from .todoist_tool import TodoistOperation, TodoistResponse
+
     if not api_key:
         @function_tool
-        async def manage_tasks(operation: str) -> str:
-            return json.dumps({
-                "status": "error",
-                "message": "Todoist not configured",
-                "code": "not_configured",
-                "suggestion": "Set TODOIST_API_KEY in your environment"
-            }, indent=2)
+        async def manage_tasks(operation_input: TodoistOperation) -> TodoistResponse:
+            return TodoistResponse(
+                status="error",
+                message="Todoist not configured",
+                data={
+                    "code": "not_configured",
+                    "suggestion": "Set TODOIST_API_KEY in your environment",
+                },
+            )
+
         return manage_tasks
 
-    # Lazy import the real tool only if an API key is present
-    from .todoist_tool import manage_tasks as real_manage_tasks
-    return real_manage_tasks
+    from .todoist_tool import manage_tasks_tool
+    return manage_tasks_tool
 
 
 def create_gmail_tool(config):
     """Return a Gmail tool; if not configured, return a stub."""
     from agents import function_tool
-    
+    from .gmail_tool import GmailOperation, GmailResponse
+
     if not getattr(config, "google_client_id", None):
         @function_tool
-        async def manage_emails(operation: str) -> str:
-            return json.dumps({
-                "status": "error",
-                "message": "Gmail integration not configured",
-                "code": "not_configured",
-                "required_variables": [
-                    "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"
-                ]
-            }, indent=2)
+        async def manage_emails(operation_input: GmailOperation) -> GmailResponse:
+            return GmailResponse(
+                status="error",
+                message="Gmail integration not configured",
+                authenticated=False,
+            )
+
         return manage_emails
 
     from .gmail_tool import manage_emails as real_manage_emails

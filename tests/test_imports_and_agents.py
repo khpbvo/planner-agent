@@ -101,7 +101,9 @@ async def test_create_calendar_tool():
 async def test_create_nlp_tool():
     """Test creation of NLP tool"""
     from tools import create_nlp_tool
-    from agents import FunctionTool, RunContextWrapper
+    from agents import FunctionTool
+    from agents.tool_context import ToolContext
+    from tools.nlp_tool import NLPResponse
     
     tool = create_nlp_tool()
     assert tool is not None
@@ -109,22 +111,21 @@ async def test_create_nlp_tool():
     
     # Test the tool functionality by calling the on_invoke_tool method
     import json
-    ctx = RunContextWrapper(context=None)
-    args = json.dumps({"text": "Test text for NLP processing"})
+    ctx = ToolContext(context=None, tool_name="nlp", tool_call_id="1")
+    args = json.dumps({"operation_input": {"text": "Test text for NLP processing"}})
     result = await tool.on_invoke_tool(ctx, args)
-    assert result is not None
-    assert isinstance(result, str)
-    
-    parsed = json.loads(result)
-    assert "intent" in parsed
-    assert "entities" in parsed
+    assert isinstance(result, NLPResponse)
+    assert result.intent is not None
+    assert isinstance(result.entities, list)
 
 
 @pytest.mark.asyncio
 async def test_create_todoist_tool_stub():
     """Test creation of Todoist tool stub when no API key"""
     from tools import create_todoist_tool
-    from agents import FunctionTool, RunContextWrapper
+    from agents import FunctionTool
+    from agents.tool_context import ToolContext
+    from tools.todoist_tool import TodoistResponse
     
     tool = create_todoist_tool(None)
     assert tool is not None
@@ -132,15 +133,12 @@ async def test_create_todoist_tool_stub():
     
     # Test the stub functionality
     import json
-    ctx = RunContextWrapper(context=None)
-    args = json.dumps({"operation": "list"})
+    ctx = ToolContext(context=None, tool_name="todoist", tool_call_id="1")
+    args = json.dumps({"operation_input": {"operation": "list"}})
     result = await tool.on_invoke_tool(ctx, args)
-    assert result is not None
-    assert isinstance(result, str)
-    
-    parsed = json.loads(result)
-    assert parsed["status"] == "error"
-    assert "not configured" in parsed["message"].lower()
+    assert isinstance(result, TodoistResponse)
+    assert result.status == "error"
+    assert "not configured" in (result.message or "").lower()
 
 
 @pytest.mark.asyncio
@@ -148,7 +146,9 @@ async def test_create_gmail_tool_stub():
     """Test creation of Gmail tool stub when not configured"""
     from tools import create_gmail_tool
     from config import Config
-    from agents import FunctionTool, RunContextWrapper
+    from agents import FunctionTool
+    from agents.tool_context import ToolContext
+    from tools.gmail_tool import GmailResponse
     
     config = Config()
     config.google_client_id = None
@@ -159,15 +159,12 @@ async def test_create_gmail_tool_stub():
     
     # Test the stub functionality
     import json
-    ctx = RunContextWrapper(context=None)
-    args = json.dumps({"operation": "list"})
+    ctx = ToolContext(context=None, tool_name="gmail", tool_call_id="1")
+    args = json.dumps({"operation_input": {"operation": "list"}})
     result = await tool.on_invoke_tool(ctx, args)
-    assert result is not None
-    assert isinstance(result, str)
-    
-    parsed = json.loads(result)
-    assert parsed["status"] == "error"
-    assert "not configured" in parsed["message"].lower()
+    assert isinstance(result, GmailResponse)
+    assert result.status == "error"
+    assert "not configured" in (result.message or "").lower()
 
 
 @pytest.mark.asyncio
