@@ -3,6 +3,11 @@ import os
 from typing import List, Optional, Any, Dict
 from datetime import datetime
 from pydantic import BaseModel
+try:
+    from pydantic import ConfigDict
+except Exception:  # pragma: no cover
+    ConfigDict = dict  # type: ignore
+from agents import function_tool
 
 # Conditional import for Todoist API
 try:
@@ -23,6 +28,8 @@ class TodoistOperation(BaseModel):
     project_name: Optional[str] = None
     filter_query: Optional[str] = None
 
+    model_config = ConfigDict(extra="forbid")
+
 
 class TodoistResponse(BaseModel):
     """Structured response for Todoist operations"""
@@ -31,6 +38,8 @@ class TodoistResponse(BaseModel):
     tasks: Optional[List[Any]] = None
     task: Optional[Any] = None
     data: Optional[Any] = None
+
+    model_config = ConfigDict(extra="forbid")
 
 
 # Global API instance
@@ -52,25 +61,26 @@ def initialize_todoist_api():
 initialize_todoist_api()
 
 
-async def manage_tasks(operation_input: TodoistOperation) -> str:
+# Legacy JSON interface retained for compatibility, but not registered as a tool
+async def manage_tasks_json(operation_input: TodoistOperation) -> str:
     """Manage tasks in Todoist (JSON string interface)"""
     try:
         operation = operation_input.operation
-        
+
         if not _todoist_api:
             return ToolError(
                 message="Todoist API key not configured. Please set TODOIST_API_KEY in your .env file",
                 code="not_configured",
             ).model_dump_json(indent=2)
-        
+
         if operation == "list":
             return await list_tasks_json()
-        
+
         elif operation == "create":
             if not operation_input.task_data:
                 return ToolError(message="task_data required for create operation").model_dump_json(indent=2)
             return await create_task_json(_todoist_api, operation_input.task_data)
-        
+
         elif operation == "update":
             if not operation_input.task_id or not operation_input.task_data:
                 return ToolError(message="task_id and task_data required for update operation").model_dump_json(indent=2)
@@ -79,26 +89,26 @@ async def manage_tasks(operation_input: TodoistOperation) -> str:
                 operation_input.task_id,
                 operation_input.task_data
             )
-        
+
         elif operation == "complete":
             if not operation_input.task_id:
                 return ToolError(message="task_id required for complete operation").model_dump_json(indent=2)
             return await complete_task_json(_todoist_api, operation_input.task_id)
-        
+
         elif operation == "delete":
             if not operation_input.task_id:
                 return ToolError(message="task_id required for delete operation").model_dump_json(indent=2)
             return await delete_task_json(_todoist_api, operation_input.task_id)
-        
+
         else:
             return ToolError(message=f"Unknown operation: {operation}").model_dump_json(indent=2)
-            
+
     except Exception as e:
         return ToolError(message=f"Error performing Todoist operation: {str(e)}").model_dump_json(indent=2)
 
 
-async def manage_tasks_structured(operation_input: TodoistOperation) -> TodoistResponse:
-    """Manage tasks in Todoist (structured interface)"""
+async def manage_tasks(operation_input: TodoistOperation) -> TodoistResponse:
+    """Manage tasks in Todoist."""
     operation = operation_input.operation
 
     try:
@@ -135,6 +145,10 @@ async def manage_tasks_structured(operation_input: TodoistOperation) -> TodoistR
             return TodoistResponse(status="error", message=f"Unknown operation: {operation}")
     except Exception as e:
         return TodoistResponse(status="error", message=f"Error performing Todoist operation: {str(e)}")
+
+
+# Expose a FunctionTool instance for OpenAI Agents SDK
+manage_tasks_tool = function_tool(manage_tasks)
 
 
 def create_todoist_tool(api_key: str):

@@ -49,10 +49,11 @@ async def test_calendar_tool_list_events():
 async def test_nlp_tool_processing():
     """Test NLP tool text processing"""
     from tools import create_nlp_tool
-    from agents import RunContextWrapper
-    
+    from agents.tool_context import ToolContext
+    from tools.nlp_tool import NLPResponse
+
     tool = create_nlp_tool()
-    ctx = RunContextWrapper(context=None)
+    ctx = ToolContext(context=None, tool_name="nlp", tool_call_id="1")
     
     # Test different text inputs
     test_cases = [
@@ -63,16 +64,12 @@ async def test_nlp_tool_processing():
     ]
     
     for text, expected_intent in test_cases:
-        args = json.dumps({"text": text})
+        args = json.dumps({"operation_input": {"text": text}})
         result = await tool.on_invoke_tool(ctx, args)
-        
-        assert result is not None
-        parsed = json.loads(result)
-        assert "intent" in parsed
-        assert parsed["intent"] == expected_intent
-        assert "entities" in parsed
-        assert "raw_text" in parsed
-        assert parsed["raw_text"] == text
+
+        assert isinstance(result, NLPResponse)
+        assert result.intent == expected_intent
+        assert result.raw_text == text
 
 
 @pytest.mark.asyncio
@@ -183,31 +180,31 @@ async def test_error_handling_in_tools():
     """Test error handling in tool execution"""
     from tools import create_todoist_tool, create_gmail_tool
     from config import Config
-    from agents import RunContextWrapper
+    from agents.tool_context import ToolContext
+    from tools.todoist_tool import TodoistResponse
+    from tools.gmail_tool import GmailResponse
     
     # Test Todoist tool without API key
     todoist_tool = create_todoist_tool(None)
-    ctx = RunContextWrapper(context=None)
-    args = json.dumps({"operation": "create", "task": "Test task"})
-    
+    ctx = ToolContext(context=None, tool_name="todoist", tool_call_id="1")
+    args = json.dumps({"operation_input": {"operation": "create", "task_data": {"title": "Test task"}}})
+
     result = await todoist_tool.on_invoke_tool(ctx, args)
-    parsed = json.loads(result)
-    
-    assert parsed["status"] == "error"
-    assert "not configured" in parsed["message"].lower()
+    assert isinstance(result, TodoistResponse)
+    assert result.status == "error"
+    assert "not configured" in (result.message or "").lower()
     
     # Test Gmail tool without configuration
     config = Config()
     config.google_client_id = None
     
     gmail_tool = create_gmail_tool(config)
-    args = json.dumps({"operation": "list"})
-    
+    args = json.dumps({"operation_input": {"operation": "list"}})
+
     result = await gmail_tool.on_invoke_tool(ctx, args)
-    parsed = json.loads(result)
-    
-    assert parsed["status"] == "error"
-    assert "not configured" in parsed["message"].lower()
+    assert isinstance(result, GmailResponse)
+    assert result.status == "error"
+    assert "not configured" in (result.message or "").lower()
 
 
 @pytest.mark.asyncio

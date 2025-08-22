@@ -25,6 +25,8 @@ class CalendarOperation(BaseModel):
     end_date: Optional[datetime] = None
     event_id: Optional[str] = None
 
+    model_config = {"extra": "forbid"}
+
 
 class CalendarResponse(BaseModel):
     """Structured response from calendar operations"""
@@ -35,3 +37,5 @@ class CalendarResponse(BaseModel):
     free_slots: Optional[List[Any]] = None
     total_free_slots: Optional[int] = None
     error: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
