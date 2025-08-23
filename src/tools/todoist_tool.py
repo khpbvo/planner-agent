@@ -2,7 +2,7 @@ import json
 import os
 from typing import List, Optional, Any, Dict
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 try:
     from pydantic import ConfigDict
 except Exception:  # pragma: no cover
@@ -20,10 +20,22 @@ from models.task import TodoistTask, TaskPriority
 from models import ToolError
 
 
+class TaskDataPayload(BaseModel):
+    """Strict schema for task data to avoid anyOf issues"""
+    content: str = Field(..., description="Task content/title")
+    description: Optional[str] = Field(None, description="Task description")
+    due_datetime: Optional[str] = Field(None, description="Due date in ISO format")
+    priority: int = Field(1, description="Priority 1-4")
+    labels: Optional[List[str]] = Field(None, description="Task labels")
+    project_id: Optional[str] = Field(None, description="Project ID")
+    
+    model_config = ConfigDict(extra="forbid")
+
+
 class TodoistOperation(BaseModel):
     """Input for Todoist operations"""
     operation: str  # "list", "create", "update", "complete", "delete"
-    task_data: Optional[Any] = None
+    task_data: Optional[TaskDataPayload] = None
     task_id: Optional[str] = None
     project_name: Optional[str] = None
     filter_query: Optional[str] = None
@@ -35,9 +47,9 @@ class TodoistResponse(BaseModel):
     """Structured response for Todoist operations"""
     status: str
     message: Optional[str] = None
-    tasks: Optional[List[Any]] = None
-    task: Optional[Any] = None
-    data: Optional[Any] = None
+    tasks: Optional[List[Dict[str, str]]] = None
+    task: Optional[Dict[str, str]] = None
+    data: Optional[Dict[str, str]] = None
 
     model_config = ConfigDict(extra="forbid")
 
