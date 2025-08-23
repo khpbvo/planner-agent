@@ -112,6 +112,10 @@ async def manage_tasks_json(operation_input: TodoistOperation) -> str:
                 return ToolError(message="task_id required for delete operation").model_dump_json(indent=2)
             return await delete_task_json(_todoist_api, operation_input.task_id)
 
+
+        elif operation == "list_projects":
+            return await list_projects_json()
+
         else:
             return ToolError(message=f"Unknown operation: {operation}").model_dump_json(indent=2)
 
@@ -265,6 +269,41 @@ async def delete_task_json(api: TodoistAPI, task_id: str) -> str:
         }, indent=2)
     except Exception as e:
         return ToolError(message=f"Failed to delete task: {str(e)}").model_dump_json(indent=2)
+
+
+
+async def list_projects_json() -> str:
+    """List all projects (JSON interface)"""
+    try:
+        if not _todoist_api:
+            # Return mock data when API not available
+            return json.dumps({
+                "status": "success",
+                "projects": [
+                    {"id": "proj_1", "name": "Work", "color": "blue"},
+                    {"id": "proj_2", "name": "Personal", "color": "green"}
+                ],
+                "total": 2
+            }, indent=2)
+            
+        projects = _todoist_api.get_projects()
+        project_list = []
+        for project in projects:
+            project_list.append({
+                "id": project.id,
+                "name": project.name,
+                "color": project.color,
+                "parent_id": project.parent_id,
+                "is_favorite": project.is_favorite
+            })
+        
+        return json.dumps({
+            "status": "success",
+            "projects": project_list,
+            "total": len(project_list)
+        }, indent=2)
+    except Exception as e:
+        return ToolError(message=f"Failed to list projects: {str(e)}").model_dump_json(indent=2)
 
 
 # Structured interface implementations

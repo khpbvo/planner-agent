@@ -210,9 +210,8 @@ class HandoffCoordinator:
         
         # Create the handoff
         handoff = Handoff(
-            agent=request.target_agent,
-            instructions=instructions,
-            context=request.context
+            to=request.target_agent,
+            instructions=instructions
         )
         
         # Record handoff
